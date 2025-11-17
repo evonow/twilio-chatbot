@@ -4,6 +4,7 @@ Provides a GUI for uploading, processing, and managing the knowledge base
 """
 
 from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+# Railway deployment - variables configured
 from werkzeug.utils import secure_filename
 from twilio.twiml.messaging_response import MessagingResponse
 import os
