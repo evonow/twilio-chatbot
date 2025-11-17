@@ -178,8 +178,18 @@ class ChatbotAgent:
             metadata = match.metadata or {}
             
             # Filter by audience if specified
-            if audience and metadata.get('audience') != audience:
-                continue
+            # Support comma-separated audiences (e.g., "sales_reps,customers")
+            if audience:
+                doc_audience = metadata.get('audience', '')
+                if doc_audience:
+                    # Check if any of the requested audiences match any of the document's audiences
+                    doc_audiences = [a.strip() for a in doc_audience.split(',')]
+                    requested_audiences = [a.strip() for a in audience.split(',')]
+                    if not any(aud in doc_audiences for aud in requested_audiences):
+                        continue
+                else:
+                    # Document has no audience label, skip if filtering
+                    continue
             
             # Get document text from metadata (Pinecone stores it in metadata)
             text = metadata.get('text', '')
