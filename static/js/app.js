@@ -879,19 +879,101 @@ function loadStats() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // Update navbar stats
                 document.getElementById('kb-stats').textContent = 
-                    `${data.total_documents} documents in knowledge base`;
+                    `${data.total_documents} documents`;
                 
-                document.getElementById('kbInfo').innerHTML = `
-                    <p><strong>Total Documents:</strong> ${data.total_documents}</p>
-                    <p><strong>Collection:</strong> ${data.collection_name}</p>
-                `;
+                // Update detailed stats in Knowledge Base section
+                updateDetailedStats(data);
+            } else {
+                document.getElementById('kb-stats').textContent = 'Error loading stats';
             }
         })
         .catch(error => {
             console.error('Stats error:', error);
             document.getElementById('kb-stats').textContent = 'Error loading stats';
         });
+}
+
+function updateDetailedStats(data) {
+    const statsContainer = document.getElementById('kbInfo');
+    if (!statsContainer) return;
+    
+    // Document types breakdown
+    const docTypes = data.document_types || {};
+    const docTypesHtml = Object.keys(docTypes).length > 0 
+        ? Object.entries(docTypes)
+            .sort((a, b) => b[1] - a[1])
+            .map(([type, count]) => `<span class="badge bg-secondary me-1">.${type}: ${count}</span>`)
+            .join('')
+        : '<span class="text-muted">No documents analyzed</span>';
+    
+    // Audience breakdown
+    const audience = data.audience_breakdown || {};
+    const audienceHtml = Object.keys(audience).length > 0
+        ? Object.entries(audience)
+            .map(([aud, count]) => `<span class="badge bg-info me-1">${aud || 'unlabeled'}: ${count}</span>`)
+            .join('')
+        : '<span class="text-muted">No audience labels</span>';
+    
+    // Customer service stats
+    const csEmails = data.customer_service?.emails || 0;
+    const csTexts = data.customer_service?.text_messages || 0;
+    const csTotal = data.customer_service?.total || 0;
+    
+    // Release notes stats
+    const releaseFeatures = data.release_notes?.features_count || 0;
+    const releaseDocs = data.release_notes?.documents || 0;
+    
+    // Other stats
+    const gitlabDocs = data.gitlab_documents || 0;
+    const uniqueFiles = data.unique_files || 0;
+    const uniqueSenders = data.unique_senders || 0;
+    
+    statsContainer.innerHTML = `
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <h6><i class="bi bi-file-earmark-text"></i> Document Types</h6>
+                <div>${docTypesHtml}</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <h6><i class="bi bi-people"></i> Audience Breakdown</h6>
+                <div>${audienceHtml}</div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <h6><i class="bi bi-envelope"></i> Customer Service</h6>
+                <ul class="list-unstyled mb-0">
+                    <li>Emails: <strong>${csEmails}</strong></li>
+                    <li>Text Messages: <strong>${csTexts}</strong></li>
+                    <li>Total: <strong>${csTotal}</strong></li>
+                </ul>
+            </div>
+            <div class="col-md-4 mb-3">
+                <h6><i class="bi bi-star"></i> Release Notes</h6>
+                <ul class="list-unstyled mb-0">
+                    <li>Documents: <strong>${releaseDocs}</strong></li>
+                    <li>Features Count: <strong>${releaseFeatures}</strong></li>
+                </ul>
+            </div>
+            <div class="col-md-4 mb-3">
+                <h6><i class="bi bi-info-circle"></i> Additional Stats</h6>
+                <ul class="list-unstyled mb-0">
+                    <li>Unique Files: <strong>${uniqueFiles}</strong></li>
+                    <li>Unique Senders: <strong>${uniqueSenders}</strong></li>
+                    <li>GitLab Docs: <strong>${gitlabDocs}</strong></li>
+                    <li class="text-muted small">Sampled: ${data.sampled_documents || 0} docs</li>
+                </ul>
+            </div>
+        </div>
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="bi bi-database"></i> Index: <strong>${data.index_name || 'N/A'}</strong> | 
+                Total Documents: <strong>${data.total_documents || 0}</strong>
+            </small>
+        </div>
+    `;
 }
 
 function clearKnowledgeBase() {
