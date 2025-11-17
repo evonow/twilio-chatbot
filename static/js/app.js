@@ -71,6 +71,11 @@ function initializeEventListeners() {
         processAllBtn.addEventListener('click', processAllFiles);
     }
     
+    const clearAllFilesBtn = document.getElementById('clearAllFilesBtn');
+    if (clearAllFilesBtn) {
+        clearAllFilesBtn.addEventListener('click', clearAllFiles);
+    }
+    
     // Analyze FAQs button
     const analyzeFaqsBtn = document.getElementById('analyzeFaqsBtn');
     if (analyzeFaqsBtn) {
@@ -777,6 +782,50 @@ function deleteFile(filename) {
     .catch(error => {
         console.error('Delete error:', error);
         showToast('Failed to delete file: ' + error.message, 'danger');
+    });
+}
+
+function clearAllFiles() {
+    // Get current file count for confirmation message
+    const fileCount = allFilesList ? allFilesList.length : 0;
+    
+    if (fileCount === 0) {
+        showToast('No files to delete', 'info');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete all ${fileCount} uploaded file(s)?\n\nThis action cannot be undone!`)) {
+        return;
+    }
+    
+    const btn = document.getElementById('clearAllFilesBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Clearing...';
+    
+    fetch('/api/files/clear-all', {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`Successfully deleted ${data.deleted_count} file(s)`, 'success');
+            // Clear the files list
+            allFilesList = [];
+            fileAudienceMap = {};
+            loadFiles();
+            updateFileTypeCounts();
+        } else {
+            showToast(data.error || 'Failed to clear files', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Clear all files error:', error);
+        showToast('Failed to clear files: ' + error.message, 'danger');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     });
 }
 

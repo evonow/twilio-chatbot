@@ -67,6 +67,22 @@ logs/
 *.bak
 *.cache
 
+# Temporary Railway/deployment scripts
+*railway*.py
+*check*.py
+*monitor*.py
+*trigger*.py
+*simple*.py
+*add_*.py
+*get_*.py
+*_SETUP.md
+*_GUIDE.md
+*_COMPARISON.md
+*_FIX.md
+*_ALTERNATIVES.md
+*_STORAGE.md
+railway_env_setup.md
+
 # OS files
 .DS_Store
 Thumbs.db

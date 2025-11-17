@@ -481,6 +481,30 @@ def delete_file(filename):
     else:
         return jsonify({'error': 'File not found'}), 404
 
+@app.route('/api/files/clear-all', methods=['DELETE'])
+def clear_all_files():
+    """Delete all uploaded files"""
+    try:
+        upload_folder = app.config['UPLOAD_FOLDER']
+        deleted_count = 0
+        
+        # Get all files in upload folder
+        if os.path.exists(upload_folder):
+            for filename in os.listdir(upload_folder):
+                filepath = os.path.join(upload_folder, filename)
+                # Only delete files (not directories) and only allowed file types
+                if os.path.isfile(filepath) and allowed_file(filename):
+                    os.remove(filepath)
+                    deleted_count += 1
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Deleted {deleted_count} file(s)',
+            'deleted_count': deleted_count
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to clear files: {str(e)}'}), 500
+
 # Outlook integration removed - using .eml file upload instead
 
 @app.route('/api/googledocs/ingest', methods=['POST'])
