@@ -47,31 +47,34 @@ class ChatbotAgent:
                 else:
                     raise
             
-            # Initialize Pinecone
+            # Initialize Pinecone (newer API - serverless, no environment needed)
             pinecone_api_key = os.getenv('PINECONE_API_KEY')
-            pinecone_env = os.getenv('PINECONE_ENVIRONMENT', 'us-east1-gcp')
             
             if not pinecone_api_key:
                 raise ValueError("PINECONE_API_KEY environment variable not set. Get it from https://app.pinecone.io")
             
-            # Initialize Pinecone
+            # Initialize Pinecone (newer serverless API)
             try:
-                pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
-                print(f"Pinecone initialized with environment: {pinecone_env}")
-            except Exception as e:
-                # Try with just API key (newer Pinecone API)
+                from pinecone import Pinecone
+                pc = Pinecone(api_key=pinecone_api_key)
+                self.pinecone_client = pc
+                print("Pinecone initialized (serverless API)")
+            except ImportError:
+                # Fallback to old API if new one not available
                 try:
-                    from pinecone import Pinecone
-                    pc = Pinecone(api_key=pinecone_api_key)
-                    self.pinecone_client = pc
-                    print("Pinecone initialized with new API")
-                except Exception as e2:
-                    raise RuntimeError(f"Failed to initialize Pinecone: {e2}. Please check PINECONE_API_KEY and PINECONE_ENVIRONMENT")
+                    pinecone_env = os.getenv('PINECONE_ENVIRONMENT', 'us-east1-gcp')
+                    pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
+                    print(f"Pinecone initialized with old API (environment: {pinecone_env})")
+                    self.pinecone_client = None  # Mark as old API
+                except Exception as e:
+                    raise RuntimeError(f"Failed to initialize Pinecone: {e}. Please check PINECONE_API_KEY")
+            except Exception as e:
+                raise RuntimeError(f"Failed to initialize Pinecone: {e}. Please check PINECONE_API_KEY")
             
             # Get or create index
             try:
-                # Try new API first
-                if hasattr(self, 'pinecone_client'):
+                if hasattr(self, 'pinecone_client') and self.pinecone_client is not None:
+                    # New serverless API
                     # Check if index exists
                     existing_indexes = [idx.name for idx in self.pinecone_client.list_indexes()]
                     if index_name in existing_indexes:
@@ -90,15 +93,15 @@ class ChatbotAgent:
                         self.index = self.pinecone_client.Index(index_name)
                         print(f"Created new Pinecone index: {index_name}")
                 else:
-                    # Old API
+                    # Old API (fallback)
                     if index_name not in pinecone.list_indexes():
                         pinecone.create_index(index_name, dimension=1536, metric='cosine')
                         import time
                         time.sleep(2)
                     self.index = pinecone.Index(index_name)
-                    print(f"Connected to Pinecone index: {index_name}")
+                    print(f"Connected to Pinecone index: {index_name} (old API)")
             except Exception as e:
-                raise RuntimeError(f"Failed to get/create Pinecone index: {e}")
+                raise RuntimeError(f"Failed to get/create Pinecone index: {e}. Make sure index '{index_name}' exists in Pinecone dashboard.")
                 
         finally:
             # Restore proxy environment variables
