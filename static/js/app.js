@@ -424,8 +424,16 @@ function queryChatbot() {
         
         if (data.success) {
             // Add both user query and assistant response to history after successful response
-            conversationHistory.push({ role: 'user', content: query });
-            conversationHistory.push({ role: 'assistant', content: data.response });
+            conversationHistory.push({ 
+                role: 'user', 
+                content: query,
+                timestamp: new Date().toISOString()
+            });
+            conversationHistory.push({ 
+                role: 'assistant', 
+                content: data.response,
+                timestamp: new Date().toISOString()
+            });
             
             displayQueryResult(data.response, data.sources);
             document.getElementById('queryInput').value = '';
