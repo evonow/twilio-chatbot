@@ -133,9 +133,10 @@ function initializeEventListeners() {
         });
     }
     
-    // Enter key for query
-    document.getElementById('queryInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && e.ctrlKey) {
+    // Enter key for query - submit on Enter, new line on Shift+Enter
+    document.getElementById('queryInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line
             queryChatbot();
         }
     });
