@@ -665,6 +665,10 @@ def get_example_questions():
         chatbot = ChatbotAgent()
         user_role = session.get('user_role', '')
         
+        # Customer service reps to exclude from examples
+        CS_REPS = ['anton', 'teresa', 'terence', 'anton@groupfund.us', 'teresa@groupfund.us', 
+                   'terence@groupfund.us', 'anton@evonow.com', 'hello@groupfund.us']
+        
         # Get audience filter based on user role
         if user_role == 'Admin':
             audience_filter = None  # Admin can see all
@@ -681,9 +685,9 @@ def get_example_questions():
         try:
             # Use a generic query to get sample documents
             sample_query = "customer question help support"
-            sample_docs = chatbot._retrieve_relevant_context(sample_query, n_results=20, audience=audience_filter)
+            sample_docs = chatbot._retrieve_relevant_context(sample_query, n_results=50, audience=audience_filter)
             
-            # Extract questions from sample documents
+            # Extract questions from sample documents, filtering out CS rep messages
             import re
             questions = []
             question_patterns = [
@@ -693,7 +697,25 @@ def get_example_questions():
             ]
             
             for doc in sample_docs:
+                metadata = doc.get('metadata', {})
+                from_email = metadata.get('from', '').lower()
+                from_name = metadata.get('from_name', '').lower()
+                
+                # Skip if from customer service reps
+                is_cs_rep = False
+                for cs_rep in CS_REPS:
+                    if cs_rep.lower() in from_email or cs_rep.lower() in from_name:
+                        is_cs_rep = True
+                        break
+                
+                if is_cs_rep:
+                    continue  # Skip customer service rep messages
+                
                 text = doc.get('text', '')
+                # Also check if text contains common CS rep signatures
+                if any(sig in text.lower() for sig in ['anton slav', 'groupfund.us', 'best, anton', 'thanks, anton']):
+                    continue
+                
                 for pattern in question_patterns:
                     matches = re.findall(pattern, text, re.IGNORECASE)
                     for match in matches:
@@ -702,6 +724,9 @@ def get_example_questions():
                         if len(question) > 15 and len(question) < 100:
                             # Remove extra whitespace and clean
                             question = ' '.join(question.split())
+                            # Skip if it looks like a response, not a question
+                            if any(phrase in question.lower() for phrase in ['thank you', 'thanks', 'best,', 'regards,', 'sincerely']):
+                                continue
                             if question not in questions:
                                 questions.append(question)
                                 if len(questions) >= 5:
