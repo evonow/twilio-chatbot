@@ -401,7 +401,7 @@ function queryChatbot() {
     
     const queryBtn = document.getElementById('queryBtn');
     queryBtn.disabled = true;
-    queryBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Querying...';
+        queryBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Asking...';
     
     const audience = document.getElementById('queryAudience')?.value || '';
     
@@ -419,7 +419,7 @@ function queryChatbot() {
     .then(response => response.json())
     .then(data => {
         queryBtn.disabled = false;
-        queryBtn.innerHTML = '<i class="bi bi-send"></i> Query';
+        queryBtn.innerHTML = '<i class="bi bi-send"></i> Ask';
         
         if (data.success) {
             // Add both user query and assistant response to history after successful response
@@ -435,7 +435,7 @@ function queryChatbot() {
     .catch(error => {
         console.error('Query error:', error);
         queryBtn.disabled = false;
-        queryBtn.innerHTML = '<i class="bi bi-send"></i> Query';
+        queryBtn.innerHTML = '<i class="bi bi-send"></i> Ask';
         showToast('Query failed: ' + error.message, 'danger');
     });
 }
