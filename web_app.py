@@ -619,6 +619,95 @@ def get_stats():
 
 # Test Email Ingestion search endpoint removed
 
+@app.route('/api/examples', methods=['GET'])
+@login_required
+def get_example_questions():
+    """Get example questions from the knowledge base for placeholder text"""
+    try:
+        chatbot = ChatbotAgent()
+        user_role = session.get('user_role', '')
+        
+        # Get audience filter based on user role
+        if user_role == 'Admin':
+            audience_filter = None  # Admin can see all
+        elif user_role == 'Internal':
+            audience_filter = None  # Internal can see all
+        elif user_role == 'Sales Rep':
+            audience_filter = 'sales_reps'
+        elif user_role == 'Customer':
+            audience_filter = 'customers'
+        else:
+            audience_filter = None
+        
+        # Get sample documents from knowledge base
+        try:
+            # Use a generic query to get sample documents
+            sample_query = "customer question help support"
+            sample_docs = chatbot._retrieve_relevant_context(sample_query, n_results=20, audience=audience_filter)
+            
+            # Extract questions from sample documents
+            import re
+            questions = []
+            question_patterns = [
+                r'(?:how|what|why|when|where|can|could|would|will|do|does|did|is|are|was|were)\s+[^?.!]+[?]',
+                r'I\s+(?:can\'?t|cannot|need|want|would like|am trying|am having trouble)\s+[^?.!]+[?.!]',
+                r'(?:help|assist|support).*[?]',
+            ]
+            
+            for doc in sample_docs:
+                text = doc.get('text', '')
+                for pattern in question_patterns:
+                    matches = re.findall(pattern, text, re.IGNORECASE)
+                    for match in matches:
+                        question = match.strip()
+                        # Clean up and validate
+                        if len(question) > 15 and len(question) < 100:
+                            # Remove extra whitespace and clean
+                            question = ' '.join(question.split())
+                            if question not in questions:
+                                questions.append(question)
+                                if len(questions) >= 5:
+                                    break
+                if len(questions) >= 5:
+                    break
+            
+            # If we don't have enough questions, use fallback examples
+            if len(questions) < 3:
+                questions = [
+                    "How do I create a fundraiser?",
+                    "How do I delete my profile?",
+                    "How do I add a donor?",
+                    "How do I track donations?",
+                    "How do I share my fundraiser?"
+                ]
+            
+            return jsonify({
+                'success': True,
+                'examples': questions[:5]  # Return top 5 examples
+            })
+        except Exception as e:
+            print(f"Error getting examples: {e}")
+            # Return fallback examples
+            return jsonify({
+                'success': True,
+                'examples': [
+                    "How do I create a fundraiser?",
+                    "How do I delete my profile?",
+                    "How do I add a donor?",
+                    "How do I track donations?",
+                    "How do I share my fundraiser?"
+                ]
+            })
+    except Exception as e:
+        return jsonify({
+            'success': True,
+            'examples': [
+                "How do I create a fundraiser?",
+                "How do I delete my profile?",
+                "How do I add a donor?"
+            ]
+        })
+
 @app.route('/api/analyze/faqs', methods=['GET'])
 @login_required
 def analyze_faqs():

@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     loadStats();
     loadFiles();
+    loadExampleQuestions();
     
     // Setup collapse chevron toggles for all sections
     const collapseSections = [
@@ -1500,5 +1501,36 @@ function deleteUser(pin) {
         console.error('Delete user error:', error);
         showToast('Failed to delete user', 'danger');
     });
+}
+
+function loadExampleQuestions() {
+    fetch('/api/examples')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.examples && data.examples.length > 0) {
+                const queryInput = document.getElementById('queryInput');
+                if (queryInput) {
+                    // Rotate through examples every 3 seconds
+                    let currentIndex = 0;
+                    const updatePlaceholder = () => {
+                        if (queryInput.value === '' || queryInput.value === queryInput.getAttribute('data-last-placeholder')) {
+                            queryInput.setAttribute('data-last-placeholder', data.examples[currentIndex]);
+                            queryInput.placeholder = `e.g., ${data.examples[currentIndex]}`;
+                            currentIndex = (currentIndex + 1) % data.examples.length;
+                        }
+                    };
+                    
+                    // Update immediately
+                    updatePlaceholder();
+                    
+                    // Rotate every 3 seconds
+                    setInterval(updatePlaceholder, 3000);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error loading examples:', error);
+            // Keep default placeholder
+        });
 }
 
