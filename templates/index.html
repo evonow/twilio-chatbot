@@ -40,13 +40,13 @@
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
-                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#testChatbotCollapse" aria-expanded="false" aria-controls="testChatbotCollapse">
+                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#testChatbotCollapse" aria-expanded="true" aria-controls="testChatbotCollapse">
                         <i class="bi bi-chat-left-text"></i> Ask Anton
                         <i class="bi bi-chevron-down ms-2"></i>
                     </button>
                 </h5>
             </div>
-            <div class="collapse" id="testChatbotCollapse">
+            <div class="collapse show" id="testChatbotCollapse">
             <div class="card-body d-flex flex-column" style="height: 600px;">
                 {% if user_role == 'Admin' %}
                 <div class="mb-3">
@@ -390,7 +390,7 @@
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
                     <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#adminCollapse" aria-expanded="false" aria-controls="adminCollapse">
-                        <i class="bi bi-shield-lock"></i> User Management (Admin)
+                        <i class="bi bi-shield-lock"></i> User Management
                         <i class="bi bi-chevron-down ms-2"></i>
                     </button>
                 </h5>
