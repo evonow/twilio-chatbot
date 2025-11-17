@@ -196,7 +196,7 @@ class DataProcessor:
         
         # Try CSV
         if file_path.endswith('.csv'):
-            return self._process_csv_sms(file_path)
+            return self._process_csv_sms(file_path, audience=audience)
         
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -315,7 +315,7 @@ class DataProcessor:
         
         return documents
     
-    def _process_csv_sms(self, file_path: str) -> List[Dict]:
+    def _process_csv_sms(self, file_path: str, audience: str = None) -> List[Dict]:
         """Process CSV formatted SMS file"""
         documents = []
         
