@@ -217,6 +217,8 @@ body {
 .card-header {
     padding: 1rem 1.25rem;
     font-weight: 500;
+    background-color: #f8f9fa !important;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .btn-link {
