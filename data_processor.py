@@ -362,7 +362,12 @@ class DataProcessor:
                         documents.append({'text': full_text, 'metadata': metadata})
         
         except Exception as e:
-            print(f"Error parsing CSV SMS file {file_path}: {e}")
+            print(f"Error parsing CSV file {file_path}: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        if len(documents) == 0:
+            print(f"Warning: No documents extracted from CSV file {file_path}. Check if CSV has expected columns or data.")
         
         return documents
     
