@@ -17,7 +17,13 @@
                 GF AI
             </span>
             <div class="d-flex align-items-center gap-3">
-                <span class="text-light" id="kb-stats">Loading stats...</span>
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-database text-light"></i>
+                    <span class="text-light fw-semibold" id="kb-stats-total">-</span>
+                    <span class="text-light small">docs</span>
+                    <span class="text-light mx-2">|</span>
+                    <span class="text-light small" id="kb-stats-types"></span>
+                </div>
                 <span class="text-light">
                     <i class="bi bi-person-circle"></i> 
                     <span id="userInfo">{{ user_name or 'User' }} ({{ user_role or 'Unknown' }})</span>
@@ -34,13 +40,13 @@
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
-                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#testChatbotCollapse" aria-expanded="true" aria-controls="testChatbotCollapse">
+                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#testChatbotCollapse" aria-expanded="false" aria-controls="testChatbotCollapse">
                         <i class="bi bi-chat-left-text"></i> Ask Anton
                         <i class="bi bi-chevron-down ms-2"></i>
                     </button>
                 </h5>
             </div>
-            <div class="collapse show" id="testChatbotCollapse">
+            <div class="collapse" id="testChatbotCollapse">
             <div class="card-body d-flex flex-column" style="height: 600px;">
                 {% if user_role == 'Admin' %}
                 <div class="mb-3">
@@ -78,13 +84,13 @@
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
-                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#uploadFilesCollapse" aria-expanded="true" aria-controls="uploadFilesCollapse">
+                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#uploadFilesCollapse" aria-expanded="false" aria-controls="uploadFilesCollapse">
                         <i class="bi bi-cloud-upload"></i> Upload Files
                         <i class="bi bi-chevron-down ms-2"></i>
                     </button>
                 </h5>
             </div>
-            <div class="collapse show" id="uploadFilesCollapse">
+            <div class="collapse" id="uploadFilesCollapse">
             <div class="card-body">
                 <div class="upload-area" id="uploadArea">
                     <i class="bi bi-cloud-upload-fill upload-icon"></i>
@@ -125,7 +131,7 @@
                     </button>
                 </h5>
             </div>
-            <div class="collapse show" id="processingStatusCollapse">
+            <div class="collapse" id="processingStatusCollapse">
             <div class="card-body">
                 <div class="progress mb-3">
                     <div class="progress-bar progress-bar-striped progress-bar-animated" 
@@ -147,7 +153,7 @@
                     </button>
                 </h5>
             </div>
-            <div class="collapse show" id="uploadedFilesCollapse">
+            <div class="collapse" id="uploadedFilesCollapse">
             <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                         <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -230,13 +236,13 @@
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
-                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#knowledgeBaseCollapse" aria-expanded="true" aria-controls="knowledgeBaseCollapse">
+                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#knowledgeBaseCollapse" aria-expanded="false" aria-controls="knowledgeBaseCollapse">
                         <i class="bi bi-database"></i> Knowledge Base
                         <i class="bi bi-chevron-down ms-2"></i>
                     </button>
                 </h5>
             </div>
-            <div class="collapse show" id="knowledgeBaseCollapse">
+            <div class="collapse" id="knowledgeBaseCollapse">
             <div class="card-body">
                 <div id="kbInfo" class="mb-3"></div>
                 <div class="d-flex gap-2 mb-3">

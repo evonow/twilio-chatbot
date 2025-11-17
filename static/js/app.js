@@ -880,18 +880,35 @@ function loadStats() {
         .then(data => {
             if (data.success) {
                 // Update navbar stats
-                document.getElementById('kb-stats').textContent = 
-                    `${data.total_documents} documents`;
+                const totalDocs = data.total_documents || 0;
+                document.getElementById('kb-stats-total').textContent = totalDocs.toLocaleString();
+                
+                // Show document types breakdown in header
+                const docTypes = data.document_types || {};
+                const typeCounts = Object.entries(docTypes)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3) // Show top 3 types
+                    .map(([type, count]) => `.${type}: ${count}`)
+                    .join(', ');
+                
+                const typesElement = document.getElementById('kb-stats-types');
+                if (typeCounts) {
+                    typesElement.textContent = typeCounts;
+                } else {
+                    typesElement.textContent = '';
+                }
                 
                 // Update detailed stats in Knowledge Base section
                 updateDetailedStats(data);
             } else {
-                document.getElementById('kb-stats').textContent = 'Error loading stats';
+                document.getElementById('kb-stats-total').textContent = '-';
+                document.getElementById('kb-stats-types').textContent = '';
             }
         })
         .catch(error => {
             console.error('Stats error:', error);
-            document.getElementById('kb-stats').textContent = 'Error loading stats';
+            document.getElementById('kb-stats-total').textContent = '-';
+            document.getElementById('kb-stats-types').textContent = '';
         });
 }
 
