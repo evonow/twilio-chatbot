@@ -448,6 +448,43 @@ def create_user():
     if role not in ['Admin', 'Internal', 'Customer', 'Sales Rep']:
         return jsonify({'error': 'Invalid role. Must be: Admin, Internal, Customer, or Sales Rep'}), 400
     
+    # Try PostgreSQL first
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Check if PIN already exists
+            cur.execute("SELECT COUNT(*) FROM users WHERE pin = %s", (pin,))
+            if cur.fetchone()[0] > 0:
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'PIN already exists'}), 400
+            
+            # Create new user
+            hashed_pin = hash_pin(pin)
+            cur.execute("""
+                INSERT INTO users (pin, hashed_pin, name, role, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (pin, hashed_pin, name, role, datetime.now()))
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+            return jsonify({
+                'success': True,
+                'message': 'User created successfully',
+                'user': {
+                    'pin': pin,
+                    'name': name,
+                    'role': role
+                }
+            })
+        except Exception as e:
+            print(f"Error creating user in PostgreSQL: {e}")
+            if conn:
+                conn.close()
+    
+    # Fallback to JSON file
     users = load_users()
     
     # Check if PIN already exists
