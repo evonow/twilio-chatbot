@@ -509,6 +509,26 @@ def query_chatbot():
     data = request.json
     query = data.get('query', '').strip()
     session_id = data.get('session_id', 'default')  # Use session_id to maintain conversation
+    user_role = session.get('user_role', '')
+    
+    # Enforce audience filtering based on user role
+    requested_audience = data.get('audience', '')
+    
+    # Admin: can access everything (no filtering)
+    if user_role == 'Admin':
+        audience_filter = requested_audience  # Use requested filter or empty for all
+    # Internal: can access all roles (no filtering)
+    elif user_role == 'Internal':
+        audience_filter = ''  # No filtering, can access all
+    # Sales Rep: only sales_reps
+    elif user_role == 'Sales Rep':
+        audience_filter = 'sales_reps'
+    # Customer: only customers
+    elif user_role == 'Customer':
+        audience_filter = 'customers'
+    else:
+        # Default: no access (shouldn't happen, but safety)
+        audience_filter = ''
     
     if not query:
         return jsonify({'error': 'No query provided'}), 400
@@ -522,11 +542,9 @@ def query_chatbot():
         
         history = conversation_history[session_id]
         
-        # Get audience filter if provided
-        audience = data.get('audience')  # 'sales_reps', 'customers', 'internal', or None
-        
+        # Use the enforced audience filter based on user role (set earlier)
         # Get response with conversation history and optional audience filtering
-        response, sources = chatbot.get_response_with_sources(query, history, audience=audience)
+        response, sources = chatbot.get_response_with_sources(query, history, audience=audience_filter)
         
         # Add to conversation history
         conversation_history[session_id].append({
