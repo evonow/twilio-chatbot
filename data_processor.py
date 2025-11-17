@@ -330,23 +330,35 @@ class DataProcessor:
                 reader = csv.DictReader(f, delimiter=delimiter)
                 
                 for row in reader:
-                    # Common CSV column names
+                    # Common CSV column names for SMS/text messages
                     text = row.get('body', row.get('message', row.get('text', row.get('content', ''))))
                     sender = row.get('from', row.get('sender', row.get('phone', row.get('address', 'Unknown'))))
                     recipient = row.get('to', row.get('recipient', 'Unknown'))
                     date = row.get('date', row.get('timestamp', row.get('time', 'Unknown')))
                     
-                    if text:
+                    # If no text found in common SMS columns, try to combine all non-empty values
+                    if not text or not text.strip():
+                        # Try to build text from all columns
+                        text_parts = []
+                        for key, value in row.items():
+                            if value and str(value).strip() and key.lower() not in ['date', 'timestamp', 'time']:
+                                text_parts.append(f"{key}: {value}")
+                        if text_parts:
+                            text = ' | '.join(text_parts)
+                    
+                    if text and str(text).strip():
                         text = self._clean_text(str(text))
-                        full_text = f"SMS/Text Message\nFrom: {sender}\nTo: {recipient}\nDate: {date}\n\n{text}"
+                        full_text = f"CSV Data\nFrom: {sender}\nTo: {recipient}\nDate: {date}\n\n{text}"
                         
                         metadata = {
-                            'source': 'sms',
+                            'source': 'csv',
                             'file': os.path.basename(file_path),
                             'from': str(sender),
                             'to': str(recipient),
                             'date': str(date)
                         }
+                        if audience:
+                            metadata['audience'] = audience
                         documents.append({'text': full_text, 'metadata': metadata})
         
         except Exception as e:
