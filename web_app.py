@@ -54,6 +54,11 @@ USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 # Ensure users file exists with default admin
 def init_users_file():
     """Initialize users file with default admin if it doesn't exist"""
+    # Ensure directory exists
+    users_dir = os.path.dirname(USERS_FILE)
+    if users_dir and not os.path.exists(users_dir):
+        os.makedirs(users_dir, exist_ok=True)
+    
     if not os.path.exists(USERS_FILE):
         default_users = {
             'users': [
@@ -65,23 +70,50 @@ def init_users_file():
                 }
             ]
         }
-        with open(USERS_FILE, 'w') as f:
-            json.dump(default_users, f, indent=2)
+        try:
+            with open(USERS_FILE, 'w') as f:
+                json.dump(default_users, f, indent=2)
+            print(f"Created users.json at: {USERS_FILE}")
+        except Exception as e:
+            print(f"Error creating users.json: {e}")
+            print(f"DATA_DIR: {DATA_DIR}")
+            print(f"USERS_FILE: {USERS_FILE}")
+    else:
+        print(f"Using existing users.json at: {USERS_FILE}")
 
 init_users_file()
 
 def load_users():
     """Load users from JSON file"""
     try:
+        if not os.path.exists(USERS_FILE):
+            print(f"Warning: users.json not found at {USERS_FILE}")
+            print(f"DATA_DIR: {DATA_DIR}")
+            # Try to initialize if missing
+            init_users_file()
         with open(USERS_FILE, 'r') as f:
-            return json.load(f).get('users', [])
-    except (FileNotFoundError, json.JSONDecodeError):
+            users = json.load(f).get('users', [])
+            print(f"Loaded {len(users)} users from {USERS_FILE}")
+            return users
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading users: {e}")
         return []
 
 def save_users(users):
     """Save users to JSON file"""
-    with open(USERS_FILE, 'w') as f:
-        json.dump({'users': users}, f, indent=2)
+    try:
+        # Ensure directory exists
+        users_dir = os.path.dirname(USERS_FILE)
+        if users_dir and not os.path.exists(users_dir):
+            os.makedirs(users_dir, exist_ok=True)
+        
+        with open(USERS_FILE, 'w') as f:
+            json.dump({'users': users}, f, indent=2)
+        print(f"Saved {len(users)} users to {USERS_FILE}")
+    except Exception as e:
+        print(f"Error saving users to {USERS_FILE}: {e}")
+        print(f"DATA_DIR: {DATA_DIR}")
+        raise
 
 def hash_pin(pin):
     """Hash PIN for storage (simple hash, in production use bcrypt)"""
