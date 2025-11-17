@@ -1,30 +1,29 @@
 """
 Chatbot Agent with RAG (Retrieval Augmented Generation)
-Uses vector database for semantic search and LLM for response generation
+Uses Pinecone vector database for semantic search and LLM for response generation
 """
 
 import os
-import chromadb
+import pinecone
 from openai import OpenAI
-from typing import List, Dict
+from typing import List, Dict, Optional
 import hashlib
+import json
 
 class ChatbotAgent:
-    def __init__(self, collection_name: str = "customer_service_kb"):
+    def __init__(self, index_name: str = "customer-service-kb"):
         """
-        Initialize the chatbot agent with vector database and LLM
+        Initialize the chatbot agent with Pinecone vector database and LLM
         
         Args:
-            collection_name: Name of the ChromaDB collection to use
+            index_name: Name of the Pinecone index to use
         """
         # Check for problematic environment variables that might cause issues
-        # Some libraries don't accept 'proxies' parameter in certain versions
         problematic_env_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']
         saved_proxies = {}
         for var in problematic_env_vars:
             if var in os.environ:
                 saved_proxies[var] = os.environ[var]
-                # Temporarily remove to avoid conflicts
                 del os.environ[var]
         
         try:
@@ -33,110 +32,78 @@ class ChatbotAgent:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY environment variable not set")
             
-            # Initialize OpenAI client
-            # Explicitly disable proxies to avoid version compatibility issues
             try:
-                # Try with explicit api_key and no proxies
                 self.client = OpenAI(api_key=api_key)
             except Exception as e:
-                # If that fails, try with environment variable but explicitly disable proxies
                 if 'proxies' in str(e).lower():
                     print(f"Warning: OpenAI initialization issue (possibly proxies): {e}")
-                    # Try to initialize with explicit http_client that doesn't use proxies
-                    # The issue is that OpenAI/httpx may be trying to pass 'proxies' parameter
-                    # to something that doesn't accept it. Let's try multiple approaches.
                     try:
                         import httpx
-                        # Approach 1: Create httpx client without any parameters
-                        # (proxy env vars are already removed, so it won't use proxies)
                         http_client = httpx.Client()
                         self.client = OpenAI(api_key=api_key, http_client=http_client)
                         print("OpenAI client initialized with explicit httpx client")
                     except Exception as e3:
-                        # Approach 2: Try using requests instead of httpx
-                        try:
-                            import requests
-                            # Create a requests session without proxies
-                            session = requests.Session()
-                            # Explicitly set proxies to None/empty to override any env vars
-                            session.proxies = {}
-                            # OpenAI might accept a requests session via http_client
-                            # But OpenAI 1.3.7 uses httpx, so this might not work
-                            # Let's try the environment variable approach instead
-                            raise Exception("Trying env var approach")
-                        except Exception:
-                            # Approach 3: Use environment variable (proxies already removed)
-                            original_key = os.environ.get('OPENAI_API_KEY')
-                            os.environ['OPENAI_API_KEY'] = api_key
-                            try:
-                                # Initialize without any parameters
-                                # Proxy env vars are removed, so it should work
-                                self.client = OpenAI()
-                                print("OpenAI client initialized via environment variable")
-                            except Exception as e4:
-                                if 'proxies' in str(e4).lower():
-                                    # Last resort: provide clear upgrade instructions
-                                    raise RuntimeError(
-                                        f"OpenAI client initialization failed due to proxies/version compatibility issue.\n\n"
-                                        f"SOLUTION: Please upgrade your libraries:\n"
-                                        f"  pip install --upgrade 'openai>=1.12.0' 'httpx>=0.27.0'\n\n"
-                                        f"Or if you have proxy environment variables set, temporarily unset them:\n"
-                                        f"  unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy\n\n"
-                                        f"Original error: {e4}"
-                                    )
-                                raise
-                            if original_key:
-                                os.environ['OPENAI_API_KEY'] = original_key
+                        raise RuntimeError(f"OpenAI client initialization failed: {e3}")
                 else:
-                    # Re-raise if it's not a proxies error
                     raise
             
-            # Initialize ChromaDB with persistence (while proxies are still removed)
-            # Avoid using Settings() as it may have compatibility issues with 'proxies' parameter
-            chroma_initialized = False
-            last_error = None
+            # Initialize Pinecone
+            pinecone_api_key = os.getenv('PINECONE_API_KEY')
+            pinecone_env = os.getenv('PINECONE_ENVIRONMENT', 'us-east1-gcp')
             
-            # Method 1: Try PersistentClient (newer API, recommended, avoids Settings entirely)
-            if not chroma_initialized:
+            if not pinecone_api_key:
+                raise ValueError("PINECONE_API_KEY environment variable not set. Get it from https://app.pinecone.io")
+            
+            # Initialize Pinecone
+            try:
+                pinecone.init(api_key=pinecone_api_key, environment=pinecone_env)
+                print(f"Pinecone initialized with environment: {pinecone_env}")
+            except Exception as e:
+                # Try with just API key (newer Pinecone API)
                 try:
-                    # Use Railway's persistent data directory if available, otherwise use local
-                    # Railway provides /data directory for persistent storage
-                    chroma_db_path = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', 
-                                             os.getenv('DATA_DIR', './chroma_db'))
-                    if not os.path.exists(chroma_db_path):
-                        os.makedirs(chroma_db_path, exist_ok=True)
-                    self.chroma_client = chromadb.PersistentClient(path=chroma_db_path)
-                    chroma_initialized = True
-                    print(f"ChromaDB initialized with PersistentClient at {chroma_db_path}")
-                except Exception as e:
-                    last_error = e
-                    print(f"PersistentClient failed: {e}")
+                    from pinecone import Pinecone
+                    pc = Pinecone(api_key=pinecone_api_key)
+                    self.pinecone_client = pc
+                    print("Pinecone initialized with new API")
+                except Exception as e2:
+                    raise RuntimeError(f"Failed to initialize Pinecone: {e2}. Please check PINECONE_API_KEY and PINECONE_ENVIRONMENT")
             
-            # Method 2: Try Client() without any parameters (in-memory, no persistence)
-            if not chroma_initialized:
-                try:
-                    self.chroma_client = chromadb.Client()
-                    chroma_initialized = True
-                    print("ChromaDB initialized with Client() (in-memory mode)")
-                except Exception as e:
-                    last_error = e
-                    print(f"Client() failed: {e}")
-            
-            if not chroma_initialized:
-                raise RuntimeError(f"Failed to initialize ChromaDB. Last error: {last_error}. "
-                                 f"Please ensure ChromaDB is properly installed: pip install chromadb")
+            # Get or create index
+            try:
+                # Try new API first
+                if hasattr(self, 'pinecone_client'):
+                    # Check if index exists
+                    existing_indexes = [idx.name for idx in self.pinecone_client.list_indexes()]
+                    if index_name in existing_indexes:
+                        self.index = self.pinecone_client.Index(index_name)
+                        print(f"Connected to existing Pinecone index: {index_name}")
+                    else:
+                        # Create index (1536 dimensions for text-embedding-ada-002)
+                        self.pinecone_client.create_index(
+                            name=index_name,
+                            dimension=1536,
+                            metric='cosine'
+                        )
+                        # Wait for index to be ready
+                        import time
+                        time.sleep(2)
+                        self.index = self.pinecone_client.Index(index_name)
+                        print(f"Created new Pinecone index: {index_name}")
+                else:
+                    # Old API
+                    if index_name not in pinecone.list_indexes():
+                        pinecone.create_index(index_name, dimension=1536, metric='cosine')
+                        import time
+                        time.sleep(2)
+                    self.index = pinecone.Index(index_name)
+                    print(f"Connected to Pinecone index: {index_name}")
+            except Exception as e:
+                raise RuntimeError(f"Failed to get/create Pinecone index: {e}")
+                
         finally:
-            # Restore proxy environment variables after all initialization is complete
+            # Restore proxy environment variables
             for var, value in saved_proxies.items():
                 os.environ[var] = value
-        
-        # Get or create collection
-        try:
-            self.collection = self.chroma_client.get_collection(name=collection_name)
-            print(f"Loaded existing collection: {collection_name}")
-        except:
-            self.collection = self.chroma_client.create_collection(name=collection_name)
-            print(f"Created new collection: {collection_name}")
         
         # Model configuration
         self.embedding_model = "text-embedding-ada-002"
@@ -172,32 +139,47 @@ class ChatbotAgent:
         # Generate query embedding
         query_embedding = self._get_embedding(query)
         
-        # Build where clause for audience filtering
-        where_clause = None
-        if audience:
-            where_clause = {'audience': audience}
+        # Query Pinecone
+        try:
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=n_results * 3 if audience else n_results,  # Get more if filtering needed
+                include_metadata=True
+            )
+        except Exception as e:
+            print(f"Error querying Pinecone: {e}")
+            return []
         
-        # Search the collection
-        query_kwargs = {
-            'query_embeddings': [query_embedding],
-            'n_results': n_results
-        }
-        if where_clause:
-            query_kwargs['where'] = where_clause
-        
-        results = self.collection.query(**query_kwargs)
-        
-        # Format results
+        # Format results and filter by audience if needed
         context_chunks = []
-        if results['ids'] and len(results['ids'][0]) > 0:
-            for i in range(len(results['ids'][0])):
-                chunk = {
-                    'id': results['ids'][0][i],
-                    'text': results['documents'][0][i],
-                    'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
-                    'distance': results['distances'][0][i] if results['distances'] else None
-                }
-                context_chunks.append(chunk)
+        for match in results.matches:
+            metadata = match.metadata or {}
+            
+            # Filter by audience if specified
+            if audience and metadata.get('audience') != audience:
+                continue
+            
+            # Get document text from metadata (Pinecone stores it in metadata)
+            text = metadata.get('text', '')
+            if not text:
+                # Fallback: try to fetch by ID if text not in metadata
+                try:
+                    fetch_result = self.index.fetch(ids=[match.id])
+                    if fetch_result.vectors and match.id in fetch_result.vectors:
+                        text = fetch_result.vectors[match.id].metadata.get('text', '')
+                except:
+                    pass
+            
+            chunk = {
+                'id': match.id,
+                'text': text,
+                'metadata': metadata,
+                'distance': match.score if hasattr(match, 'score') else None
+            }
+            context_chunks.append(chunk)
+            
+            if len(context_chunks) >= n_results:
+                break
         
         return context_chunks
     
@@ -211,6 +193,9 @@ class ChatbotAgent:
         """
         Search for documents by metadata (subject, from, to, filename, audience)
         
+        Note: Pinecone free tier doesn't support metadata filtering in queries.
+        This method fetches a sample and filters in Python.
+        
         Args:
             subject: Email subject to search for (partial match)
             from_email: Sender email to search for (partial match)
@@ -222,79 +207,50 @@ class ChatbotAgent:
         Returns:
             List of matching documents with metadata
         """
-        # Build metadata filter
-        where_clause = {}
-        
-        if subject:
-            # ChromaDB uses $contains for partial string matching
-            where_clause['subject'] = {'$contains': subject}
-        if from_email:
-            where_clause['from'] = {'$contains': from_email}
-        if to_email:
-            where_clause['to'] = {'$contains': to_email}
-        if filename:
-            where_clause['file'] = {'$contains': filename}
-        if audience:
-            where_clause['audience'] = audience
-        
+        # Pinecone doesn't support metadata filtering in free tier
+        # We'll need to fetch a sample and filter in Python
+        # For better performance, use a dummy query to get results
         try:
-            if where_clause:
-                # Search with metadata filter
-                results = self.collection.get(
-                    where=where_clause,
-                    limit=max_results
-                )
-            else:
-                # If no filters, get all documents (limited)
-                results = self.collection.get(limit=max_results)
+            # Use a generic query to get documents
+            dummy_embedding = self._get_embedding("customer service email")
+            results = self.index.query(
+                vector=dummy_embedding,
+                top_k=min(max_results * 10, 1000),  # Get more to filter
+                include_metadata=True
+            )
             
-            # Format results
             documents = []
-            if results['ids'] and len(results['ids']) > 0:
-                for i in range(len(results['ids'])):
+            for match in results.matches:
+                metadata = match.metadata or {}
+                
+                # Apply filters
+                match_filter = True
+                if subject and subject.lower() not in metadata.get('subject', '').lower():
+                    match_filter = False
+                if from_email and from_email.lower() not in metadata.get('from', '').lower():
+                    match_filter = False
+                if to_email and to_email.lower() not in metadata.get('to', '').lower():
+                    match_filter = False
+                if filename and filename.lower() not in metadata.get('file', '').lower():
+                    match_filter = False
+                if audience and metadata.get('audience') != audience:
+                    match_filter = False
+                
+                if match_filter:
+                    text = metadata.get('text', '')
                     doc = {
-                        'id': results['ids'][i],
-                        'text': results['documents'][i] if results['documents'] else '',
-                        'metadata': results['metadatas'][i] if results['metadatas'] else {},
+                        'id': match.id,
+                        'text': text,
+                        'metadata': metadata,
                     }
                     documents.append(doc)
+                    if len(documents) >= max_results:
+                        break
             
             return documents
         except Exception as e:
             print(f"Error searching by metadata: {e}")
-            # Fallback: get all and filter in Python
-            try:
-                all_results = self.collection.get(limit=1000)  # Get more to filter
-                documents = []
-                if all_results['ids'] and len(all_results['ids']) > 0:
-                    for i in range(len(all_results['ids'])):
-                        metadata = all_results['metadatas'][i] if all_results['metadatas'] else {}
-                        
-                        # Apply filters
-                        match = True
-                        if subject and subject.lower() not in metadata.get('subject', '').lower():
-                            match = False
-                        if from_email and from_email.lower() not in metadata.get('from', '').lower():
-                            match = False
-                        if to_email and to_email.lower() not in metadata.get('to', '').lower():
-                            match = False
-                        if filename and filename.lower() not in metadata.get('file', '').lower():
-                            match = False
-                        
-                        if match:
-                            doc = {
-                                'id': all_results['ids'][i],
-                                'text': all_results['documents'][i] if all_results['documents'] else '',
-                                'metadata': metadata,
-                            }
-                            documents.append(doc)
-                            if len(documents) >= max_results:
-                                break
-                
-                return documents
-            except Exception as e2:
-                print(f"Error in fallback search: {e2}")
-                return []
+            return []
     
     def search_by_text(self, search_text: str, max_results: int = 10) -> List[Dict]:
         """
@@ -311,24 +267,26 @@ class ChatbotAgent:
             # Generate embedding for search text
             query_embedding = self._get_embedding(search_text)
             
-            # Search the collection
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=max_results
+            # Query Pinecone
+            results = self.index.query(
+                vector=query_embedding,
+                top_k=max_results,
+                include_metadata=True
             )
             
             # Format results
             documents = []
-            if results['ids'] and len(results['ids'][0]) > 0:
-                for i in range(len(results['ids'][0])):
-                    doc = {
-                        'id': results['ids'][0][i],
-                        'text': results['documents'][0][i],
-                        'metadata': results['metadatas'][0][i] if results['metadatas'] else {},
-                        'distance': results['distances'][0][i] if results['distances'] else None,
-                        'relevance_score': 1.0 - (results['distances'][0][i] if results['distances'] else 1.0)
-                    }
-                    documents.append(doc)
+            for match in results.matches:
+                metadata = match.metadata or {}
+                text = metadata.get('text', '')
+                doc = {
+                    'id': match.id,
+                    'text': text,
+                    'metadata': metadata,
+                    'distance': match.score if hasattr(match, 'score') else None,
+                    'relevance_score': match.score if hasattr(match, 'score') else None
+                }
+                documents.append(doc)
             
             return documents
         except Exception as e:
@@ -347,18 +305,28 @@ class ChatbotAgent:
             List of dictionaries with 'question', 'frequency', and 'examples'
         """
         try:
-            # Get a sample of documents from the knowledge base
-            all_docs = self.collection.get(limit=sample_size)
+            # Get a sample of documents from Pinecone
+            # Use a dummy query to get documents
+            dummy_embedding = self._get_embedding("customer question")
+            results = self.index.query(
+                vector=dummy_embedding,
+                top_k=min(sample_size, 100),
+                include_metadata=True
+            )
             
-            if not all_docs or not all_docs.get('documents'):
+            if not results.matches:
                 return []
             
             # Extract text content from documents
             documents_text = []
-            for i, doc_text in enumerate(all_docs['documents']):
-                metadata = all_docs['metadatas'][i] if all_docs.get('metadatas') else {}
-                # Focus on customer questions (usually in the body or from customer emails)
-                documents_text.append(doc_text)
+            for match in results.matches:
+                metadata = match.metadata or {}
+                text = metadata.get('text', '')
+                if text:
+                    documents_text.append(text)
+            
+            if not documents_text:
+                return []
             
             # Combine documents for analysis (limit total text to avoid token limits)
             combined_text = "\n\n---\n\n".join(documents_text[:50])  # Limit to 50 docs
@@ -405,26 +373,22 @@ Return ONLY valid JSON array, no other text."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,  # Lower temperature for more consistent extraction
+                temperature=0.3,
                 max_tokens=2000
             )
             
             # Parse JSON response
-            import json
             response_text = response.choices[0].message.content.strip()
             
-            # Try to extract JSON from response (in case LLM adds extra text)
+            # Try to extract JSON from response
             try:
-                # Try parsing directly
                 faqs = json.loads(response_text)
             except json.JSONDecodeError:
-                # Try to extract JSON from markdown code blocks or other formatting
                 import re
                 json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
                 if json_match:
                     faqs = json.loads(json_match.group())
                 else:
-                    # Fallback: simple pattern matching
                     faqs = self._extract_questions_simple(documents_text)
             
             # Sort by frequency and limit results
@@ -438,13 +402,6 @@ Return ONLY valid JSON array, no other text."""
             print(f"Error analyzing FAQs: {e}")
             import traceback
             traceback.print_exc()
-            # Fallback to simple extraction
-            try:
-                all_docs = self.collection.get(limit=sample_size)
-                if all_docs and all_docs.get('documents'):
-                    return self._extract_questions_simple(all_docs['documents'][:50])
-            except:
-                pass
             return []
     
     def _extract_questions_simple(self, documents: List[str]) -> List[Dict]:
@@ -472,18 +429,16 @@ Return ONLY valid JSON array, no other text."""
         seen_questions = set()
         
         for question, count in question_counter.most_common(20):
-            # Simple similarity check - avoid duplicates
             question_lower = question.lower()
             is_duplicate = False
             for seen in seen_questions:
-                # Check if questions are very similar
                 if question_lower in seen.lower() or seen.lower() in question_lower:
                     is_duplicate = True
                     break
             
             if not is_duplicate and count > 0:
                 faqs.append({
-                    'question': question[:200],  # Limit length
+                    'question': question[:200],
                     'frequency': count,
                     'variations': [question]
                 })
@@ -573,7 +528,7 @@ Please provide a polite response suggesting they contact support directly or rep
             model=self.llm_model,
             messages=messages,
             temperature=0.7,
-            max_tokens=300  # Increased to allow for source explanations
+            max_tokens=300
         )
         
         return response.choices[0].message.content.strip()
@@ -604,7 +559,7 @@ Please provide a polite response suggesting they contact support directly or rep
         if is_faq_query:
             # Get FAQs
             faqs = self.analyze_frequently_asked_questions(
-                max_questions=min(num_questions, 20),  # Cap at 20
+                max_questions=min(num_questions, 20),
                 sample_size=200
             )
             
@@ -628,14 +583,12 @@ Please provide a polite response suggesting they contact support directly or rep
                 return "I couldn't find any frequently asked questions in the knowledge base. Make sure emails have been processed first."
         
         # Regular query processing
-        # Retrieve relevant context (with optional audience filtering)
-        # Note: audience filtering can be added to get_response_with_sources if needed
         context_chunks = self._retrieve_relevant_context(query)
         
         # Generate response with conversation history
         response = self._generate_response(query, context_chunks, conversation_history)
         
-        # Truncate if too long (SMS limit is ~1600 chars, but we'll be conservative)
+        # Truncate if too long
         if len(response) > self.max_response_length:
             response = response[:self.max_response_length].rsplit('.', 1)[0] + "..."
         
@@ -661,12 +614,10 @@ Please provide a polite response suggesting they contact support directly or rep
         is_faq_query = any(keyword in query_lower for keyword in faq_keywords)
         
         if is_faq_query:
-            # For FAQ queries, return empty sources
             response = self.get_response(query, conversation_history)
             return response, []
         
         # Regular query processing
-        # Retrieve relevant context (with audience filtering if specified)
         context_chunks = self._retrieve_relevant_context(query, audience=audience)
         
         # Extract sources
@@ -709,13 +660,20 @@ Please provide a polite response suggesting they contact support directly or rep
         # Generate embedding
         embedding = self._get_embedding(text)
         
-        # Add to collection
-        self.collection.add(
-            ids=[doc_id],
-            embeddings=[embedding],
-            documents=[text],
-            metadatas=[metadata]
-        )
+        # Store text in metadata (Pinecone stores metadata, not separate documents)
+        metadata_with_text = metadata.copy()
+        metadata_with_text['text'] = text
         
-        print(f"Added document {doc_id} to knowledge base")
-
+        # Add to Pinecone index
+        try:
+            self.index.upsert(
+                vectors=[{
+                    'id': doc_id,
+                    'values': embedding,
+                    'metadata': metadata_with_text
+                }]
+            )
+            print(f"Added document {doc_id} to Pinecone index")
+        except Exception as e:
+            print(f"Error adding document to Pinecone: {e}")
+            raise
