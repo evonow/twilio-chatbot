@@ -3,10 +3,11 @@ Web Application for Email & SMS Data Processing
 Provides a GUI for uploading, processing, and managing the knowledge base
 """
 
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, session, redirect, url_for
 # Railway deployment - variables configured
 from werkzeug.utils import secure_filename
 from twilio.twiml.messaging_response import MessagingResponse
+from functools import wraps
 import os
 import json
 import sys
@@ -15,6 +16,7 @@ from data_processor import DataProcessor
 from chatbot import ChatbotAgent
 import threading
 from datetime import datetime, timedelta
+import hashlib
 
 # Add scripts directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
@@ -35,10 +37,73 @@ load_dotenv()
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = './uploads'
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessions last 24 hours
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# User management file
+USERS_FILE = 'users.json'
+
+# Ensure users file exists with default admin
+def init_users_file():
+    """Initialize users file with default admin if it doesn't exist"""
+    if not os.path.exists(USERS_FILE):
+        default_users = {
+            'users': [
+                {
+                    'pin': '0000',
+                    'name': 'Admin',
+                    'role': 'Internal',
+                    'created_at': datetime.now().isoformat()
+                }
+            ]
+        }
+        with open(USERS_FILE, 'w') as f:
+            json.dump(default_users, f, indent=2)
+
+init_users_file()
+
+def load_users():
+    """Load users from JSON file"""
+    try:
+        with open(USERS_FILE, 'r') as f:
+            return json.load(f).get('users', [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+def save_users(users):
+    """Save users to JSON file"""
+    with open(USERS_FILE, 'w') as f:
+        json.dump({'users': users}, f, indent=2)
+
+def hash_pin(pin):
+    """Hash PIN for storage (simple hash, in production use bcrypt)"""
+    return hashlib.sha256(pin.encode()).hexdigest()
+
+def verify_pin(pin, hashed_pin):
+    """Verify PIN against hash"""
+    return hash_pin(pin) == hashed_pin
+
+def login_required(f):
+    """Decorator to require login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_pin' not in session:
+            return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """Decorator to require admin (Internal role)"""
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if session.get('user_role') != 'Internal':
+            return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'eml', 'mbox', 'txt', 'json', 'csv', 'xml', 'docx', 'pdf'}
@@ -67,9 +132,190 @@ def allowed_file(filename):
 @app.route('/')
 def index():
     """Main page"""
-    return render_template('index.html')
+    if 'user_pin' not in session:
+        return redirect(url_for('login'))
+    return render_template('index.html', user_role=session.get('user_role'), user_name=session.get('user_name'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login page"""
+    if request.method == 'POST':
+        data = request.get_json()
+        pin = data.get('pin', '').strip()
+        
+        if not pin or len(pin) != 4 or not pin.isdigit():
+            return jsonify({'error': 'Invalid PIN. Must be 4 digits.'}), 400
+        
+        users = load_users()
+        for user in users:
+            # Check if PIN matches (stored as hash or plain for now)
+            if 'hashed_pin' in user:
+                if verify_pin(pin, user['hashed_pin']):
+                    session.permanent = True
+                    session['user_pin'] = user['pin']  # Store original PIN for reference
+                    session['user_role'] = user['role']
+                    session['user_name'] = user.get('name', 'User')
+                    return jsonify({
+                        'success': True,
+                        'message': 'Login successful',
+                        'role': user['role'],
+                        'name': user.get('name', 'User')
+                    })
+            else:
+                # Backward compatibility: plain PIN
+                if user['pin'] == pin:
+                    session.permanent = True
+                    session['user_pin'] = user['pin']
+                    session['user_role'] = user['role']
+                    session['user_name'] = user.get('name', 'User')
+                    # Upgrade to hashed PIN
+                    user['hashed_pin'] = hash_pin(pin)
+                    save_users(users)
+                    return jsonify({
+                        'success': True,
+                        'message': 'Login successful',
+                        'role': user['role'],
+                        'name': user.get('name', 'User')
+                    })
+        
+        return jsonify({'error': 'Invalid PIN'}), 401
+    
+    # GET request - show login page
+    if 'user_pin' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    """Logout"""
+    session.clear()
+    return jsonify({'success': True, 'message': 'Logged out successfully'})
+
+@app.route('/api/auth/status')
+def auth_status():
+    """Get current authentication status"""
+    if 'user_pin' in session:
+        return jsonify({
+            'authenticated': True,
+            'role': session.get('user_role'),
+            'name': session.get('user_name')
+        })
+    return jsonify({'authenticated': False})
+
+@app.route('/api/users', methods=['GET'])
+@admin_required
+def list_users():
+    """List all users (admin only)"""
+    users = load_users()
+    # Don't return PINs or hashed PINs
+    safe_users = []
+    for user in users:
+        safe_users.append({
+            'pin': user['pin'],  # Show PIN for admin management
+            'name': user.get('name', ''),
+            'role': user['role'],
+            'created_at': user.get('created_at', '')
+        })
+    return jsonify({'users': safe_users})
+
+@app.route('/api/users', methods=['POST'])
+@admin_required
+def create_user():
+    """Create a new user (admin only)"""
+    data = request.get_json()
+    pin = data.get('pin', '').strip()
+    name = data.get('name', '').strip()
+    role = data.get('role', '').strip()
+    
+    if not pin or len(pin) != 4 or not pin.isdigit():
+        return jsonify({'error': 'PIN must be exactly 4 digits'}), 400
+    
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    
+    if role not in ['Internal', 'Customer', 'Sales Rep']:
+        return jsonify({'error': 'Invalid role. Must be: Internal, Customer, or Sales Rep'}), 400
+    
+    users = load_users()
+    
+    # Check if PIN already exists
+    if any(u['pin'] == pin for u in users):
+        return jsonify({'error': 'PIN already exists'}), 400
+    
+    # Create new user
+    new_user = {
+        'pin': pin,
+        'hashed_pin': hash_pin(pin),
+        'name': name,
+        'role': role,
+        'created_at': datetime.now().isoformat()
+    }
+    users.append(new_user)
+    save_users(users)
+    
+    return jsonify({
+        'success': True,
+        'message': 'User created successfully',
+        'user': {
+            'pin': pin,
+            'name': name,
+            'role': role
+        }
+    })
+
+@app.route('/api/users/<pin>', methods=['PUT'])
+@admin_required
+def update_user(pin):
+    """Update a user (admin only)"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    role = data.get('role', '').strip()
+    new_pin = data.get('pin', '').strip()
+    
+    users = load_users()
+    user_found = False
+    
+    for user in users:
+        if user['pin'] == pin:
+            user_found = True
+            if name:
+                user['name'] = name
+            if role and role in ['Internal', 'Customer', 'Sales Rep']:
+                user['role'] = role
+            if new_pin and len(new_pin) == 4 and new_pin.isdigit():
+                # Check if new PIN already exists
+                if any(u['pin'] == new_pin and u['pin'] != pin for u in users):
+                    return jsonify({'error': 'New PIN already exists'}), 400
+                user['pin'] = new_pin
+                user['hashed_pin'] = hash_pin(new_pin)
+            break
+    
+    if not user_found:
+        return jsonify({'error': 'User not found'}), 404
+    
+    save_users(users)
+    return jsonify({'success': True, 'message': 'User updated successfully'})
+
+@app.route('/api/users/<pin>', methods=['DELETE'])
+@admin_required
+def delete_user(pin):
+    """Delete a user (admin only)"""
+    users = load_users()
+    original_count = len(users)
+    users = [u for u in users if u['pin'] != pin]
+    
+    if len(users) == original_count:
+        return jsonify({'error': 'User not found'}), 404
+    
+    # Don't allow deleting the last user
+    if len(users) == 0:
+        return jsonify({'error': 'Cannot delete the last user'}), 400
+    
+    save_users(users)
+    return jsonify({'success': True, 'message': 'User deleted successfully'})
 
 @app.route('/api/upload', methods=['POST'])
+@login_required
 def upload_files():
     """Handle file uploads"""
     if 'files[]' not in request.files:
@@ -101,6 +347,7 @@ def upload_files():
     })
 
 @app.route('/api/process', methods=['POST'])
+@login_required
 def process_files():
     """Process uploaded files"""
     global processing_status
@@ -137,6 +384,7 @@ def process_files():
     })
 
 @app.route('/api/process/all', methods=['POST'])
+@login_required
 def process_all_files():
     """Process all files in the uploads directory"""
     global processing_status
@@ -255,6 +503,7 @@ def get_status():
     return jsonify(processing_status)
 
 @app.route('/api/query', methods=['POST'])
+@login_required
 def query_chatbot():
     """Query the chatbot with conversation history"""
     data = request.json
@@ -312,6 +561,7 @@ def query_chatbot():
         }), 500
 
 @app.route('/api/conversation/clear', methods=['POST'])
+@login_required
 def clear_conversation():
     """Clear conversation history for a session"""
     data = request.json
@@ -326,6 +576,7 @@ def clear_conversation():
     })
 
 @app.route('/api/stats', methods=['GET'])
+@login_required
 def get_stats():
     """Get knowledge base statistics"""
     try:
@@ -346,6 +597,7 @@ def get_stats():
 # Test Email Ingestion search endpoint removed
 
 @app.route('/api/analyze/faqs', methods=['GET'])
+@login_required
 def analyze_faqs():
     """Analyze knowledge base to extract frequently asked questions"""
     try:
@@ -373,13 +625,25 @@ def analyze_faqs():
         }), 500
 
 @app.route('/api/clear', methods=['POST'])
+@admin_required
 def clear_knowledge_base():
     """Clear the knowledge base (use with caution!)"""
     try:
         chatbot = ChatbotAgent()
-        # Delete collection and recreate
-        chatbot.chroma_client.delete_collection(name=chatbot.collection.name)
-        chatbot.collection = chatbot.chroma_client.create_collection(name=chatbot.collection.name)
+        # Delete all vectors from Pinecone index
+        index_name = chatbot.index_name if hasattr(chatbot, 'index_name') else 'customer-service-kb'
+        # Delete all vectors by deleting the index and recreating it
+        # Note: This requires admin access to Pinecone
+        # Alternative: Delete all vectors using delete_all() if available
+        try:
+            # Try to delete all vectors using delete_all (if supported)
+            chatbot.index.delete(delete_all=True)
+        except:
+            # Fallback: Delete index and recreate (requires Pinecone admin API)
+            # For now, just return an error suggesting manual deletion
+            return jsonify({
+                'error': 'Cannot automatically clear Pinecone index. Please delete all vectors manually in Pinecone dashboard or delete and recreate the index.'
+            }), 500
         
         return jsonify({
             'success': True,
@@ -389,6 +653,7 @@ def clear_knowledge_base():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/files', methods=['GET'])
+@login_required
 def list_uploaded_files():
     """List uploaded files with processing status"""
     files = []
@@ -471,6 +736,7 @@ def list_uploaded_files():
     return jsonify({'files': files})
 
 @app.route('/api/files/<filename>', methods=['DELETE'])
+@login_required
 def delete_file(filename):
     """Delete an uploaded file"""
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
@@ -482,6 +748,7 @@ def delete_file(filename):
         return jsonify({'error': 'File not found'}), 404
 
 @app.route('/api/files/clear-all', methods=['DELETE'])
+@login_required
 def clear_all_files():
     """Delete all uploaded files"""
     try:

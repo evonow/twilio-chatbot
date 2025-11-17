@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
         'gitlabCollapse'
     ];
     
+    // Add admin collapse to list if it exists
+    if (document.getElementById('adminCollapse')) {
+        collapseSections.push('adminCollapse');
+    }
+    
     collapseSections.forEach(sectionId => {
         const collapse = document.getElementById(sectionId);
         const button = document.querySelector(`[data-bs-target="#${sectionId}"]`);
@@ -74,6 +79,45 @@ function initializeEventListeners() {
     const clearAllFilesBtn = document.getElementById('clearAllFilesBtn');
     if (clearAllFilesBtn) {
         clearAllFilesBtn.addEventListener('click', clearAllFiles);
+    }
+    
+    // Logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
+    
+    // Admin user management
+    const addUserBtn = document.getElementById('addUserBtn');
+    if (addUserBtn) {
+        addUserBtn.addEventListener('click', () => {
+            document.getElementById('addUserForm').style.display = 'block';
+        });
+    }
+    
+    const cancelAddUserBtn = document.getElementById('cancelAddUserBtn');
+    if (cancelAddUserBtn) {
+        cancelAddUserBtn.addEventListener('click', () => {
+            document.getElementById('addUserForm').style.display = 'none';
+            document.getElementById('newUserPin').value = '';
+            document.getElementById('newUserName').value = '';
+            document.getElementById('newUserRole').value = 'Customer';
+        });
+    }
+    
+    const saveUserBtn = document.getElementById('saveUserBtn');
+    if (saveUserBtn) {
+        saveUserBtn.addEventListener('click', createUser);
+    }
+    
+    const refreshUsersBtn = document.getElementById('refreshUsersBtn');
+    if (refreshUsersBtn) {
+        refreshUsersBtn.addEventListener('click', loadUsers);
+    }
+    
+    // Load users if admin section exists
+    if (document.getElementById('adminCollapse')) {
+        loadUsers();
     }
     
     // Analyze FAQs button
@@ -1308,6 +1352,152 @@ function ingestGitLab() {
             </div>
         `;
         showToast('Failed to ingest GitLab repository: ' + error.message, 'danger');
+    });
+}
+
+function logout() {
+    if (!confirm('Are you sure you want to logout?')) {
+        return;
+    }
+    
+    fetch('/logout', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/login';
+        } else {
+            showToast('Logout failed', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Logout error:', error);
+        // Redirect anyway
+        window.location.href = '/login';
+    });
+}
+
+function loadUsers() {
+    fetch('/api/users')
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                showToast('Admin access required', 'danger');
+                return;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.users) {
+                displayUsers(data.users);
+            }
+        })
+        .catch(error => {
+            console.error('Load users error:', error);
+            showToast('Failed to load users', 'danger');
+        });
+}
+
+function displayUsers(users) {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    
+    if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">No users found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = users.map(user => {
+        const createdDate = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A';
+        return `
+            <tr>
+                <td><code>${escapeHtml(user.pin)}</code></td>
+                <td>${escapeHtml(user.name || '')}</td>
+                <td><span class="badge bg-${getRoleBadgeColor(user.role)}">${escapeHtml(user.role)}</span></td>
+                <td>${createdDate}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${user.pin}')">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getRoleBadgeColor(role) {
+    switch(role) {
+        case 'Internal': return 'dark';
+        case 'Sales Rep': return 'info';
+        case 'Customer': return 'success';
+        default: return 'secondary';
+    }
+}
+
+function createUser() {
+    const pin = document.getElementById('newUserPin').value.trim();
+    const name = document.getElementById('newUserName').value.trim();
+    const role = document.getElementById('newUserRole').value;
+    
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+        showToast('PIN must be exactly 4 digits', 'danger');
+        return;
+    }
+    
+    if (!name) {
+        showToast('Name is required', 'danger');
+        return;
+    }
+    
+    fetch('/api/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pin, name, role })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`User ${name} created successfully with PIN ${pin}`, 'success');
+            document.getElementById('addUserForm').style.display = 'none';
+            document.getElementById('newUserPin').value = '';
+            document.getElementById('newUserName').value = '';
+            document.getElementById('newUserRole').value = 'Customer';
+            loadUsers();
+        } else {
+            showToast(data.error || 'Failed to create user', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Create user error:', error);
+        showToast('Failed to create user', 'danger');
+    });
+}
+
+function deleteUser(pin) {
+    if (!confirm(`Are you sure you want to delete user with PIN ${pin}?`)) {
+        return;
+    }
+    
+    fetch(`/api/users/${pin}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('User deleted successfully', 'success');
+            loadUsers();
+        } else {
+            showToast(data.error || 'Failed to delete user', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Delete user error:', error);
+        showToast('Failed to delete user', 'danger');
     });
 }
 

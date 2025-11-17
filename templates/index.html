@@ -14,7 +14,16 @@
             <span class="navbar-brand mb-0 h1">
                 <i class="bi bi-chat-dots"></i> Email & SMS Data Processor
             </span>
-            <span class="text-light" id="kb-stats">Loading stats...</span>
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-light" id="kb-stats">Loading stats...</span>
+                <span class="text-light">
+                    <i class="bi bi-person-circle"></i> 
+                    <span id="userInfo">{{ user_name or 'User' }} ({{ user_role or 'Unknown' }})</span>
+                </span>
+                <button class="btn btn-outline-light btn-sm" id="logoutBtn">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -347,6 +356,82 @@
             </div>
             </div>
         </div>
+
+        <!-- User Management (Admin Only) -->
+        {% if user_role == 'Internal' %}
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">
+                    <button class="btn btn-link text-white text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#adminCollapse" aria-expanded="false" aria-controls="adminCollapse">
+                        <i class="bi bi-shield-lock"></i> User Management (Admin)
+                        <i class="bi bi-chevron-down ms-2"></i>
+                    </button>
+                </h5>
+            </div>
+            <div class="collapse" id="adminCollapse">
+            <div class="card-body">
+                <div class="mb-3">
+                    <button class="btn btn-primary" id="addUserBtn">
+                        <i class="bi bi-person-plus"></i> Add New User
+                    </button>
+                    <button class="btn btn-secondary" id="refreshUsersBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+                
+                <!-- Add User Form (initially hidden) -->
+                <div class="card mb-3" id="addUserForm" style="display: none;">
+                    <div class="card-body">
+                        <h6>Add New User</h6>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label for="newUserPin" class="form-label">PIN (4 digits)</label>
+                                <input type="text" class="form-control" id="newUserPin" maxlength="4" pattern="[0-9]{4}" placeholder="0000">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="newUserName" class="form-label">Name</label>
+                                <input type="text" class="form-control" id="newUserName" placeholder="John Doe">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="newUserRole" class="form-label">Role</label>
+                                <select class="form-select" id="newUserRole">
+                                    <option value="Customer">Customer</option>
+                                    <option value="Sales Rep">Sales Rep</option>
+                                    <option value="Internal">Internal</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-success w-100" id="saveUserBtn">
+                                    <i class="bi bi-check"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary mt-2" id="cancelAddUserBtn">Cancel</button>
+                    </div>
+                </div>
+                
+                <div id="usersList" class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>PIN</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center">Loading users...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
+        </div>
+        {% endif %}
 
     </div>
 

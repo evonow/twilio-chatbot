@@ -52,6 +52,7 @@ chroma_db/
 *.db
 *.sqlite
 *.sqlite3
+users.json
 
 # Logs
 *.log
