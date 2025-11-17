@@ -22,6 +22,7 @@ except ImportError:
 
 class ChatbotAgent:
     def __init__(self, index_name: str = "customer-service-kb"):
+        self.index_name = index_name
         """
         Initialize the chatbot agent with Pinecone vector database and LLM
         

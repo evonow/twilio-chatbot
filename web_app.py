@@ -604,15 +604,21 @@ def get_stats():
     """Get knowledge base statistics"""
     try:
         chatbot = ChatbotAgent()
-        collection = chatbot.collection
         
-        # Get collection count
-        count_result = collection.count()
+        # Get index stats from Pinecone
+        try:
+            stats = chatbot.index.describe_index_stats()
+            total_documents = stats.total_vector_count if hasattr(stats, 'total_vector_count') else 0
+            index_name = chatbot.index_name if hasattr(chatbot, 'index_name') else 'customer-service-kb'
+        except Exception as e:
+            print(f"Error getting Pinecone stats: {e}")
+            total_documents = 0
+            index_name = 'customer-service-kb'
         
         return jsonify({
             'success': True,
-            'total_documents': count_result,
-            'collection_name': chatbot.collection.name
+            'total_documents': total_documents,
+            'index_name': index_name
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
