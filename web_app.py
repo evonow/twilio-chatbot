@@ -930,7 +930,7 @@ def clear_conversation():
 @app.route('/api/stats', methods=['GET'])
 @login_required
 def get_stats():
-    """Get knowledge base statistics"""
+    """Get comprehensive knowledge base statistics"""
     try:
         chatbot = ChatbotAgent()
         
@@ -944,12 +944,135 @@ def get_stats():
             total_documents = 0
             index_name = 'customer-service-kb'
         
+        # Sample documents to analyze metadata (get up to 1000 for stats)
+        document_types = {}
+        audience_counts = {}
+        customer_service_emails = 0
+        customer_service_texts = 0
+        release_notes_features = 0
+        gitlab_docs = 0
+        unique_files = set()
+        unique_senders = set()
+        unique_subjects = set()
+        
+        try:
+            # Use multiple generic queries to sample different types of documents
+            sample_queries = [
+                "customer service email support",
+                "release notes features",
+                "documentation guide",
+                "text message conversation"
+            ]
+            
+            all_sampled_docs = []
+            for query in sample_queries:
+                try:
+                    # Get embedding and query
+                    query_embedding = chatbot._get_embedding(query)
+                    results = chatbot.index.query(
+                        vector=query_embedding,
+                        top_k=min(250, total_documents // len(sample_queries) + 1),
+                        include_metadata=True
+                    )
+                    all_sampled_docs.extend(results.matches)
+                except Exception as e:
+                    print(f"Error sampling documents for query '{query}': {e}")
+                    continue
+            
+            # Remove duplicates by ID
+            seen_ids = set()
+            unique_docs = []
+            for match in all_sampled_docs:
+                if match.id not in seen_ids:
+                    seen_ids.add(match.id)
+                    unique_docs.append(match)
+            
+            # Analyze metadata
+            for match in unique_docs:
+                metadata = match.metadata or {}
+                
+                # Document type from file extension
+                filename = metadata.get('file', '') or metadata.get('filename', '')
+                if filename:
+                    unique_files.add(filename)
+                    ext = filename.lower().split('.')[-1] if '.' in filename else 'unknown'
+                    if ext in ['eml', 'docx', 'pdf', 'txt', 'json', 'csv', 'xml']:
+                        document_types[ext] = document_types.get(ext, 0) + 1
+                    else:
+                        document_types['other'] = document_types.get('other', 0) + 1
+                
+                # Audience counts
+                audience = metadata.get('audience', 'unlabeled')
+                audience_counts[audience] = audience_counts.get(audience, 0) + 1
+                
+                # Customer service emails
+                if metadata.get('from') or metadata.get('to') or metadata.get('subject'):
+                    customer_service_emails += 1
+                    if metadata.get('from'):
+                        unique_senders.add(metadata.get('from'))
+                    if metadata.get('subject'):
+                        unique_subjects.add(metadata.get('subject'))
+                
+                # Customer service texts (SMS/text messages)
+                if 'text message' in filename.lower() or 'sms' in filename.lower() or metadata.get('type') == 'text':
+                    customer_service_texts += 1
+                
+                # Release notes features
+                filename_lower = filename.lower()
+                subject_lower = metadata.get('subject', '').lower()
+                if 'release' in filename_lower or 'release' in subject_lower:
+                    # Try to count features in release notes
+                    text = metadata.get('text', '')
+                    # Count bullet points, numbered items, or "feature" mentions
+                    feature_indicators = [
+                        text.count('•'),
+                        text.count('- '),
+                        text.count('* '),
+                        len([line for line in text.split('\n') if line.strip().startswith(('1.', '2.', '3.', '4.', '5.'))]),
+                        text.lower().count('feature'),
+                        text.lower().count('new:'),
+                        text.lower().count('added:'),
+                    ]
+                    release_notes_features += max(feature_indicators) if feature_indicators else 0
+                
+                # GitLab documents
+                if 'gitlab' in filename_lower or metadata.get('source') == 'gitlab':
+                    gitlab_docs += 1
+                    
+        except Exception as e:
+            print(f"Error analyzing document metadata: {e}")
+            # Continue with basic stats even if detailed analysis fails
+        
+        # Calculate additional stats
+        total_unique_files = len(unique_files)
+        total_unique_senders = len(unique_senders)
+        total_unique_subjects = len(unique_subjects)
+        
         return jsonify({
             'success': True,
             'total_documents': total_documents,
-            'index_name': index_name
+            'index_name': index_name,
+            'document_types': document_types,
+            'audience_breakdown': audience_counts,
+            'customer_service': {
+                'emails': customer_service_emails,
+                'text_messages': customer_service_texts,
+                'total': customer_service_emails + customer_service_texts
+            },
+            'release_notes': {
+                'features_count': release_notes_features,
+                'documents': sum(1 for match in unique_docs if 'release' in (match.metadata or {}).get('file', '').lower() or 'release' in (match.metadata or {}).get('subject', '').lower())
+            },
+            'gitlab_documents': gitlab_docs,
+            'unique_files': total_unique_files,
+            'unique_senders': total_unique_senders,
+            'unique_subjects': total_unique_subjects,
+            'sampled_documents': len(unique_docs)
         })
     except Exception as e:
+        print(f"Error in get_stats: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 # Test Email Ingestion search endpoint removed
