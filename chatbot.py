@@ -99,9 +99,15 @@ class ChatbotAgent:
             # Method 1: Try PersistentClient (newer API, recommended, avoids Settings entirely)
             if not chroma_initialized:
                 try:
-                    self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
+                    # Use Railway's persistent data directory if available, otherwise use local
+                    # Railway provides /data directory for persistent storage
+                    chroma_db_path = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', 
+                                             os.getenv('DATA_DIR', './chroma_db'))
+                    if not os.path.exists(chroma_db_path):
+                        os.makedirs(chroma_db_path, exist_ok=True)
+                    self.chroma_client = chromadb.PersistentClient(path=chroma_db_path)
                     chroma_initialized = True
-                    print("ChromaDB initialized with PersistentClient")
+                    print(f"ChromaDB initialized with PersistentClient at {chroma_db_path}")
                 except Exception as e:
                     last_error = e
                     print(f"PersistentClient failed: {e}")
