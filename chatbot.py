@@ -255,8 +255,17 @@ class ChatbotAgent:
                     match_filter = False
                 if filename and filename.lower() not in metadata.get('file', '').lower():
                     match_filter = False
-                if audience and metadata.get('audience') != audience:
-                    match_filter = False
+                if audience:
+                    doc_audience = metadata.get('audience', '')
+                    if doc_audience:
+                        # Check if any of the requested audiences match any of the document's audiences
+                        doc_audiences = [a.strip() for a in doc_audience.split(',')]
+                        requested_audiences = [a.strip() for a in audience.split(',')]
+                        if not any(aud in doc_audiences for aud in requested_audiences):
+                            match_filter = False
+                    else:
+                        # Document has no audience label, skip if filtering
+                        match_filter = False
                 
                 if match_filter:
                     text = metadata.get('text', '')

@@ -296,7 +296,16 @@ function processFiles() {
         return;
     }
     
-    const audience = document.getElementById('audienceSelect')?.value || '';
+    // Get selected audiences from checkboxes
+    const selectedAudiences = [];
+    const audienceCheckboxes = ['audienceSalesReps', 'audienceCustomers', 'audienceInternal'];
+    audienceCheckboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            selectedAudiences.push(checkbox.value);
+        }
+    });
+    const audience = selectedAudiences.length > 0 ? selectedAudiences.join(',') : '';
     
     fetch('/api/process', {
         method: 'POST',
@@ -330,7 +339,16 @@ function processAllFiles() {
         return;
     }
     
-    const audience = document.getElementById('processAllAudienceSelect')?.value || '';
+    // Get selected audiences from checkboxes (reuse the same checkboxes)
+    const selectedAudiences = [];
+    const audienceCheckboxes = ['audienceSalesReps', 'audienceCustomers', 'audienceInternal'];
+    audienceCheckboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            selectedAudiences.push(checkbox.value);
+        }
+    });
+    const audience = selectedAudiences.length > 0 ? selectedAudiences.join(',') : '';
     
     const btn = document.getElementById('processAllBtn');
     btn.disabled = true;

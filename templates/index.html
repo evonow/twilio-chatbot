@@ -114,13 +114,25 @@
                 <div class="mt-3">
                     <div class="mb-3">
                         <label class="form-label"><strong>Label for Training Data:</strong></label>
-                        <select class="form-select" id="audienceSelect">
-                            <option value="">All Audiences (No Label)</option>
-                            <option value="sales_reps">Sales Reps</option>
-                            <option value="customers">Customers</option>
-                            <option value="internal">Internal Use</option>
-                        </select>
-                        <small class="form-text text-muted">Select the intended audience for this training data</small>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="audienceSalesReps" value="sales_reps">
+                            <label class="form-check-label" for="audienceSalesReps">
+                                Sales Reps
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="audienceCustomers" value="customers">
+                            <label class="form-check-label" for="audienceCustomers">
+                                Customers
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="audienceInternal" value="internal">
+                            <label class="form-check-label" for="audienceInternal">
+                                Internal Use
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">Select one or more intended audiences for this training data (can select multiple)</small>
                     </div>
                     <button class="btn btn-primary" id="processBtn" disabled>
                         <i class="bi bi-play-fill"></i> Process Files
