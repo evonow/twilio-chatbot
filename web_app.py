@@ -55,7 +55,7 @@ def init_users_file():
                 {
                     'pin': '0000',
                     'name': 'Admin',
-                    'role': 'Internal',
+                    'role': 'Admin',
                     'created_at': datetime.now().isoformat()
                 }
             ]
@@ -96,11 +96,11 @@ def login_required(f):
     return decorated_function
 
 def admin_required(f):
-    """Decorator to require admin (Internal role)"""
+    """Decorator to require admin (Admin role)"""
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
-        if session.get('user_role') != 'Internal':
+        if session.get('user_role') != 'Admin':
             return jsonify({'error': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
@@ -233,8 +233,8 @@ def create_user():
     if not name:
         return jsonify({'error': 'Name is required'}), 400
     
-    if role not in ['Internal', 'Customer', 'Sales Rep']:
-        return jsonify({'error': 'Invalid role. Must be: Internal, Customer, or Sales Rep'}), 400
+    if role not in ['Admin', 'Internal', 'Customer', 'Sales Rep']:
+        return jsonify({'error': 'Invalid role. Must be: Admin, Internal, Customer, or Sales Rep'}), 400
     
     users = load_users()
     
@@ -280,7 +280,7 @@ def update_user(pin):
             user_found = True
             if name:
                 user['name'] = name
-            if role and role in ['Internal', 'Customer', 'Sales Rep']:
+            if role and role in ['Admin', 'Internal', 'Customer', 'Sales Rep']:
                 user['role'] = role
             if new_pin and len(new_pin) == 4 and new_pin.isdigit():
                 # Check if new PIN already exists

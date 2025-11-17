@@ -1430,6 +1430,7 @@ function displayUsers(users) {
 
 function getRoleBadgeColor(role) {
     switch(role) {
+        case 'Admin': return 'danger';
         case 'Internal': return 'dark';
         case 'Sales Rep': return 'info';
         case 'Customer': return 'success';

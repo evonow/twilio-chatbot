@@ -358,7 +358,7 @@
         </div>
 
         <!-- User Management (Admin Only) -->
-        {% if user_role == 'Internal' %}
+        {% if user_role == 'Admin' %}
         <div class="card mb-4">
             <div class="card-header bg-dark text-white">
                 <h5 class="mb-0">
@@ -398,6 +398,7 @@
                                     <option value="Customer">Customer</option>
                                     <option value="Sales Rep">Sales Rep</option>
                                     <option value="Internal">Internal</option>
+                                    <option value="Admin">Admin</option>
                                 </select>
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
