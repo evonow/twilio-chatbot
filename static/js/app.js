@@ -119,6 +119,7 @@ function initializeEventListeners() {
     // Load users if admin section exists
     if (document.getElementById('adminCollapse')) {
         loadUsers();
+        checkDbStatus();
     }
     
     // Analyze FAQs button
