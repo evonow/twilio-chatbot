@@ -1481,6 +1481,37 @@ function logout() {
     });
 }
 
+function checkDbStatus() {
+    fetch('/api/db-status')
+        .then(response => response.json())
+        .then(data => {
+            const alertDiv = document.getElementById('dbStatusAlert');
+            const statusText = document.getElementById('dbStatusText');
+            
+            if (!alertDiv || !statusText) return;
+            
+            if (data.using_postgres && data.connection_test === 'success') {
+                alertDiv.className = 'alert alert-success mb-3';
+                statusText.innerHTML = `✅ PostgreSQL connected | ${data.user_count} user(s) stored | Users will persist across deployments`;
+            } else if (data.warning) {
+                alertDiv.className = 'alert alert-warning mb-3';
+                statusText.innerHTML = `⚠️ ${data.warning} | Users may be lost on next deployment!`;
+            } else {
+                alertDiv.className = 'alert alert-danger mb-3';
+                statusText.innerHTML = `❌ Database connection failed | Users may be lost on next deployment!`;
+            }
+        })
+        .catch(error => {
+            console.error('DB status error:', error);
+            const alertDiv = document.getElementById('dbStatusAlert');
+            const statusText = document.getElementById('dbStatusText');
+            if (alertDiv && statusText) {
+                alertDiv.className = 'alert alert-danger mb-3';
+                statusText.innerHTML = `❌ Error checking database status`;
+            }
+        });
+}
+
 function loadUsers() {
     fetch('/api/users')
         .then(response => {

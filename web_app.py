@@ -1627,6 +1627,64 @@ def clear_twilio_conversation(phone_number):
     else:
         return jsonify({'error': 'Conversation not found'}), 404
 
+@app.route('/api/db-status', methods=['GET'])
+@login_required
+def db_status():
+    """Diagnostic endpoint to check PostgreSQL configuration"""
+    status = {
+        'psycopg2_available': POSTGRESQL_AVAILABLE,
+        'database_url_set': bool(os.getenv('DATABASE_URL')),
+        'connection_test': None,
+        'table_exists': False,
+        'user_count': 0,
+        'using_postgres': False,
+        'warning': None
+    }
+    
+    if not POSTGRESQL_AVAILABLE:
+        status['warning'] = 'psycopg2 not installed - using JSON file fallback (ephemeral)'
+        return jsonify(status)
+    
+    if not status['database_url_set']:
+        status['warning'] = 'DATABASE_URL not set - using JSON file fallback (ephemeral)'
+        return jsonify(status)
+    
+    # Test connection
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            
+            # Check if table exists
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'users'
+                );
+            """)
+            status['table_exists'] = cur.fetchone()[0]
+            
+            if status['table_exists']:
+                # Count users
+                cur.execute("SELECT COUNT(*) FROM users")
+                status['user_count'] = cur.fetchone()[0]
+            
+            status['connection_test'] = 'success'
+            status['using_postgres'] = True
+            cur.close()
+            conn.close()
+        except Exception as e:
+            status['connection_test'] = f'error: {str(e)}'
+            status['warning'] = f'Connection failed: {str(e)}'
+            if conn:
+                conn.close()
+    else:
+        status['connection_test'] = 'failed'
+        status['warning'] = 'Could not establish connection'
+    
+    return jsonify(status)
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     # Use debug=False in production (set via environment variable)
