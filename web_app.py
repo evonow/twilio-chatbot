@@ -61,19 +61,24 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def get_db_connection():
     """Get PostgreSQL database connection if available"""
     if not POSTGRESQL_AVAILABLE:
+        print("⚠️ PostgreSQL not available (psycopg2 not installed)")
         return None
     
     # Try to get DATABASE_URL from Railway or environment
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
+        print("⚠️ DATABASE_URL not set - using JSON file fallback")
         return None
     
     try:
         # Parse DATABASE_URL (Railway format: postgresql://user:pass@host:port/dbname)
         conn = psycopg2.connect(database_url, sslmode='require')
+        print(f"✅ Connected to PostgreSQL database")
         return conn
     except Exception as e:
-        print(f"Error connecting to PostgreSQL: {e}")
+        print(f"❌ Error connecting to PostgreSQL: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def init_users_db():
@@ -104,16 +109,24 @@ def init_users_db():
                     VALUES (%s, %s, %s, %s, %s)
                 """, ('0000', hashed_pin, 'Admin', 'Admin', datetime.now()))
                 conn.commit()
-                print("Created default admin user in PostgreSQL")
+                print("✅ Created default admin user in PostgreSQL")
             else:
-                print("Using existing PostgreSQL users table")
+                print("✅ Using existing PostgreSQL users table")
+            
+            # Log current user count for debugging
+            cur.execute("SELECT COUNT(*) FROM users")
+            user_count = cur.fetchone()[0]
+            print(f"✅ PostgreSQL initialized with {user_count} user(s)")
             
             cur.close()
             conn.close()
             return True
         except Exception as e:
-            print(f"Error initializing PostgreSQL: {e}")
-            conn.close()
+            print(f"❌ Error initializing PostgreSQL: {e}")
+            import traceback
+            traceback.print_exc()
+            if conn:
+                conn.close()
             return False
     
     # Fallback to JSON file
