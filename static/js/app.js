@@ -444,50 +444,63 @@ function queryChatbot() {
 function displayQueryResult(response, sources = []) {
     const resultDiv = document.getElementById('queryResult');
     
-    // Build conversation history display
+    // Build conversation history display in iMessage style
     let conversationHTML = '';
     conversationHistory.forEach((msg, index) => {
         const isLastMessage = index === conversationHistory.length - 1;
         const isLastResponse = isLastMessage && msg.role === 'assistant';
         
+        // Format timestamp
+        const timestamp = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+        
         if (msg.role === 'user') {
             conversationHTML += `
-                <div class="query-text mb-2">
-                    <i class="bi bi-question-circle"></i> ${escapeHtml(msg.content)}
+                <div class="message-bubble user">
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                        ${timestamp ? `<div class="message-timestamp">${timestamp}</div>` : ''}
+                    </div>
                 </div>
             `;
         } else {
             conversationHTML += `
-                <div class="response-text mb-3">
-                    <i class="bi bi-chat-left-text"></i> ${escapeHtml(msg.content)}
-                    ${sources && sources.length > 0 && isLastResponse ? `
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <i class="bi bi-info-circle"></i> Based on ${sources.length} source(s):
+                <div class="message-bubble assistant">
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                        ${sources && sources.length > 0 && isLastResponse ? `
+                            <div class="message-sources">
+                                <i class="bi bi-info-circle"></i> Based on ${sources.length} source${sources.length > 1 ? 's' : ''}:
                                 ${sources.slice(0, 2).map(s => 
                                     `${s.subject !== 'N/A' ? escapeHtml(s.subject) : escapeHtml(s.file)}`
                                 ).join(', ')}
                                 ${sources.length > 2 ? ` and ${sources.length - 2} more` : ''}
-                            </small>
-                        </div>
-                    ` : ''}
+                            </div>
+                        ` : ''}
+                        ${timestamp ? `<div class="message-timestamp">${timestamp}</div>` : ''}
+                    </div>
                 </div>
             `;
         }
     });
     
     resultDiv.innerHTML = `
-        <div class="conversation-history">
-            ${conversationHTML}
+        <div class="conversation-history" id="conversationHistory">
+            ${conversationHTML || '<div class="text-muted text-center py-4">Start a conversation by asking a question!</div>'}
         </div>
         ${conversationHistory.length > 0 ? `
-            <div class="mt-2">
+            <div class="clear-conversation-btn">
                 <button class="btn btn-sm btn-outline-secondary" onclick="clearConversation()">
                     <i class="bi bi-x-circle"></i> Clear Conversation
                 </button>
             </div>
         ` : ''}
     `;
+    
+    // Auto-scroll to bottom
+    const historyDiv = document.getElementById('conversationHistory');
+    if (historyDiv) {
+        historyDiv.scrollTop = historyDiv.scrollHeight;
+    }
 }
 
 function clearConversation() {
@@ -504,13 +517,13 @@ function clearConversation() {
         })
         .then(response => response.json())
         .then(data => {
-            document.getElementById('queryResult').innerHTML = '<p class="text-muted">Conversation cleared. Start a new conversation!</p>';
+            displayQueryResult(); // Refresh display with empty state
             showToast('Conversation cleared', 'success');
         })
         .catch(error => {
             console.error('Clear conversation error:', error);
             // Still clear locally even if API call fails
-            document.getElementById('queryResult').innerHTML = '<p class="text-muted">Conversation cleared. Start a new conversation!</p>';
+            displayQueryResult(); // Refresh display with empty state
         });
     }
 }
