@@ -521,6 +521,54 @@ def update_user(pin):
     role = data.get('role', '').strip()
     new_pin = data.get('pin', '').strip()
     
+    # Try PostgreSQL first
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Check if user exists
+            cur.execute("SELECT COUNT(*) FROM users WHERE pin = %s", (pin,))
+            if cur.fetchone()[0] == 0:
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'User not found'}), 404
+            
+            # Update fields
+            updates = []
+            params = []
+            
+            if name:
+                updates.append("name = %s")
+                params.append(name)
+            if role and role in ['Admin', 'Internal', 'Customer', 'Sales Rep']:
+                updates.append("role = %s")
+                params.append(role)
+            if new_pin and len(new_pin) == 4 and new_pin.isdigit():
+                # Check if new PIN already exists
+                cur.execute("SELECT COUNT(*) FROM users WHERE pin = %s AND pin != %s", (new_pin, pin))
+                if cur.fetchone()[0] > 0:
+                    cur.close()
+                    conn.close()
+                    return jsonify({'error': 'New PIN already exists'}), 400
+                updates.append("pin = %s")
+                updates.append("hashed_pin = %s")
+                params.append(new_pin)
+                params.append(hash_pin(new_pin))
+            
+            if updates:
+                params.append(pin)
+                cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE pin = %s", params)
+                conn.commit()
+            
+            cur.close()
+            conn.close()
+            return jsonify({'success': True, 'message': 'User updated successfully'})
+        except Exception as e:
+            print(f"Error updating user in PostgreSQL: {e}")
+            if conn:
+                conn.close()
+    
+    # Fallback to JSON file
     users = load_users()
     user_found = False
     
