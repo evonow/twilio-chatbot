@@ -35,7 +35,12 @@ except ImportError:
 load_dotenv()
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = './uploads'
+
+# Use persistent data directory (for Railway volumes or local storage)
+DATA_DIR = os.getenv('DATA_DIR', './data')
+os.makedirs(DATA_DIR, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessions last 24 hours
@@ -43,8 +48,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessions last 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# User management file
-USERS_FILE = 'users.json'
+# User management file (in persistent data directory)
+USERS_FILE = os.path.join(DATA_DIR, 'users.json')
 
 # Ensure users file exists with default admin
 def init_users_file():
