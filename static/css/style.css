@@ -267,6 +267,12 @@ body {
 /* Navbar styling */
 .navbar {
     box-shadow: var(--shadow);
+    background-color: #000 !important;
+}
+
+.navbar .container {
+    max-width: 1140px; /* Match Bootstrap container max-width */
+    margin: 0 auto;
 }
 
 /* Table styling */
