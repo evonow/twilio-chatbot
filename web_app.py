@@ -18,6 +18,15 @@ import threading
 from datetime import datetime, timedelta
 import hashlib
 
+# PostgreSQL support for persistent user storage
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    POSTGRESQL_AVAILABLE = True
+except ImportError:
+    POSTGRESQL_AVAILABLE = False
+    print("Warning: psycopg2 not available, using JSON file for user storage")
+
 # Add scripts directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 try:
@@ -48,13 +57,67 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Sessions last 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# User management file (in persistent data directory)
-USERS_FILE = os.path.join(DATA_DIR, 'users.json')
+# User management - use PostgreSQL if available, otherwise JSON file
+def get_db_connection():
+    """Get PostgreSQL database connection if available"""
+    if not POSTGRESQL_AVAILABLE:
+        return None
+    
+    # Try to get DATABASE_URL from Railway or environment
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        return None
+    
+    try:
+        # Parse DATABASE_URL (Railway format: postgresql://user:pass@host:port/dbname)
+        conn = psycopg2.connect(database_url, sslmode='require')
+        return conn
+    except Exception as e:
+        print(f"Error connecting to PostgreSQL: {e}")
+        return None
 
-# Ensure users file exists with default admin
-def init_users_file():
-    """Initialize users file with default admin if it doesn't exist"""
-    # Ensure directory exists
+def init_users_db():
+    """Initialize users table in PostgreSQL or JSON file"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Create users table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    pin VARCHAR(4) PRIMARY KEY,
+                    hashed_pin VARCHAR(64),
+                    name VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            
+            # Check if admin user exists
+            cur.execute("SELECT COUNT(*) FROM users WHERE pin = '0000'")
+            if cur.fetchone()[0] == 0:
+                # Create default admin
+                hashed_pin = hash_pin('0000')
+                cur.execute("""
+                    INSERT INTO users (pin, hashed_pin, name, role, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, ('0000', hashed_pin, 'Admin', 'Admin', datetime.now()))
+                conn.commit()
+                print("Created default admin user in PostgreSQL")
+            else:
+                print("Using existing PostgreSQL users table")
+            
+            cur.close()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error initializing PostgreSQL: {e}")
+            conn.close()
+            return False
+    
+    # Fallback to JSON file
+    USERS_FILE = os.path.join(DATA_DIR, 'users.json')
     users_dir = os.path.dirname(USERS_FILE)
     if users_dir and not os.path.exists(users_dir):
         os.makedirs(users_dir, exist_ok=True)
@@ -76,21 +139,42 @@ def init_users_file():
             print(f"Created users.json at: {USERS_FILE}")
         except Exception as e:
             print(f"Error creating users.json: {e}")
-            print(f"DATA_DIR: {DATA_DIR}")
-            print(f"USERS_FILE: {USERS_FILE}")
     else:
         print(f"Using existing users.json at: {USERS_FILE}")
+    return False
 
-init_users_file()
+init_users_db()
 
 def load_users():
-    """Load users from JSON file"""
+    """Load users from PostgreSQL or JSON file"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT pin, name, role, created_at FROM users ORDER BY created_at")
+            users = []
+            for row in cur.fetchall():
+                users.append({
+                    'pin': row['pin'],
+                    'name': row['name'],
+                    'role': row['role'],
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                    'hashed_pin': None  # Don't return hashed PINs
+                })
+            cur.close()
+            conn.close()
+            print(f"Loaded {len(users)} users from PostgreSQL")
+            return users
+        except Exception as e:
+            print(f"Error loading users from PostgreSQL: {e}")
+            conn.close()
+            return []
+    
+    # Fallback to JSON file
+    USERS_FILE = os.path.join(DATA_DIR, 'users.json')
     try:
         if not os.path.exists(USERS_FILE):
-            print(f"Warning: users.json not found at {USERS_FILE}")
-            print(f"DATA_DIR: {DATA_DIR}")
-            # Try to initialize if missing
-            init_users_file()
+            init_users_db()
         with open(USERS_FILE, 'r') as f:
             users = json.load(f).get('users', [])
             print(f"Loaded {len(users)} users from {USERS_FILE}")
@@ -100,9 +184,54 @@ def load_users():
         return []
 
 def save_users(users):
-    """Save users to JSON file"""
+    """Save users to PostgreSQL or JSON file"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Get existing PINs
+            cur.execute("SELECT pin FROM users")
+            existing_pins = {row[0] for row in cur.fetchall()}
+            
+            # Update or insert users
+            for user in users:
+                pin = user['pin']
+                hashed = user.get('hashed_pin') or hash_pin(pin)
+                name = user['name']
+                role = user['role']
+                created_at = user.get('created_at')
+                
+                if pin in existing_pins:
+                    cur.execute("""
+                        UPDATE users SET name = %s, role = %s, hashed_pin = %s
+                        WHERE pin = %s
+                    """, (name, role, hashed, pin))
+                else:
+                    cur.execute("""
+                        INSERT INTO users (pin, hashed_pin, name, role, created_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (pin, hashed, name, role, created_at or datetime.now()))
+            
+            # Delete users not in the list (except admin)
+            current_pins = {user['pin'] for user in users}
+            pins_to_delete = existing_pins - current_pins
+            for pin in pins_to_delete:
+                if pin != '0000':  # Don't delete admin
+                    cur.execute("DELETE FROM users WHERE pin = %s", (pin,))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"Saved {len(users)} users to PostgreSQL")
+            return
+        except Exception as e:
+            print(f"Error saving users to PostgreSQL: {e}")
+            conn.close()
+            raise
+    
+    # Fallback to JSON file
+    USERS_FILE = os.path.join(DATA_DIR, 'users.json')
     try:
-        # Ensure directory exists
         users_dir = os.path.dirname(USERS_FILE)
         if users_dir and not os.path.exists(users_dir):
             os.makedirs(users_dir, exist_ok=True)
@@ -112,7 +241,6 @@ def save_users(users):
         print(f"Saved {len(users)} users to {USERS_FILE}")
     except Exception as e:
         print(f"Error saving users to {USERS_FILE}: {e}")
-        print(f"DATA_DIR: {DATA_DIR}")
         raise
 
 def hash_pin(pin):
@@ -183,13 +311,60 @@ def login():
         if not pin or len(pin) != 4 or not pin.isdigit():
             return jsonify({'error': 'Invalid PIN. Must be 4 digits.'}), 400
         
+        # Check PostgreSQL first if available
+        conn = get_db_connection()
+        if conn:
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT pin, hashed_pin, name, role FROM users WHERE pin = %s", (pin,))
+                row = cur.fetchone()
+                if row:
+                    stored_pin, stored_hash, name, role = row
+                    if stored_hash and verify_pin(pin, stored_hash):
+                        session.permanent = True
+                        session['user_pin'] = stored_pin
+                        session['user_role'] = role
+                        session['user_name'] = name or 'User'
+                        cur.close()
+                        conn.close()
+                        return jsonify({
+                            'success': True,
+                            'message': 'Login successful',
+                            'role': role,
+                            'name': name or 'User'
+                        })
+                    elif not stored_hash and stored_pin == pin:
+                        # Upgrade to hashed PIN
+                        hashed = hash_pin(pin)
+                        cur.execute("UPDATE users SET hashed_pin = %s WHERE pin = %s", (hashed, pin))
+                        conn.commit()
+                        session.permanent = True
+                        session['user_pin'] = stored_pin
+                        session['user_role'] = role
+                        session['user_name'] = name or 'User'
+                        cur.close()
+                        conn.close()
+                        return jsonify({
+                            'success': True,
+                            'message': 'Login successful',
+                            'role': role,
+                            'name': name or 'User'
+                        })
+                cur.close()
+                conn.close()
+            except Exception as e:
+                print(f"Error checking PostgreSQL for login: {e}")
+                if conn:
+                    conn.close()
+        
+        # Fallback to JSON file logic
         users = load_users()
         for user in users:
             # Check if PIN matches (stored as hash or plain for now)
-            if 'hashed_pin' in user:
+            if user.get('hashed_pin'):
                 if verify_pin(pin, user['hashed_pin']):
                     session.permanent = True
-                    session['user_pin'] = user['pin']  # Store original PIN for reference
+                    session['user_pin'] = user['pin']
                     session['user_role'] = user['role']
                     session['user_name'] = user.get('name', 'User')
                     return jsonify({
@@ -337,6 +512,43 @@ def update_user(pin):
 @admin_required
 def delete_user(pin):
     """Delete a user (admin only)"""
+    # Don't allow deleting admin
+    if pin == '0000':
+        return jsonify({'error': 'Cannot delete admin user'}), 400
+    
+    # Try PostgreSQL first
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            # Check if user exists
+            cur.execute("SELECT COUNT(*) FROM users WHERE pin = %s", (pin,))
+            if cur.fetchone()[0] == 0:
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'User not found'}), 404
+            
+            # Check total user count
+            cur.execute("SELECT COUNT(*) FROM users")
+            total_count = cur.fetchone()[0]
+            if total_count <= 1:
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'Cannot delete the last user'}), 400
+            
+            # Delete user
+            cur.execute("DELETE FROM users WHERE pin = %s", (pin,))
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+            return jsonify({'success': True, 'message': 'User deleted successfully'})
+        except Exception as e:
+            print(f"Error deleting user from PostgreSQL: {e}")
+            if conn:
+                conn.close()
+    
+    # Fallback to JSON file
     users = load_users()
     original_count = len(users)
     users = [u for u in users if u['pin'] != pin]
