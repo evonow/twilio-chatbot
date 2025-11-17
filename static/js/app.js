@@ -18,18 +18,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup collapse chevron toggles for all sections
     const collapseSections = [
         'testChatbotCollapse',
+        'adminSectionCollapse',
         'uploadFilesCollapse',
         'processingStatusCollapse',
         'uploadedFilesCollapse',
         'knowledgeBaseCollapse',
         'twilioCollapse',
-        'gitlabCollapse'
+        'gitlabCollapse',
+        'adminCollapse'
     ];
-    
-    // Add admin collapse to list if it exists
-    if (document.getElementById('adminCollapse')) {
-        collapseSections.push('adminCollapse');
-    }
     
     collapseSections.forEach(sectionId => {
         const collapse = document.getElementById(sectionId);

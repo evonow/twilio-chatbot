@@ -80,6 +80,18 @@
         </div>
 
         {% if user_role == 'Admin' %}
+        <!-- Admin Section -->
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+                <h5 class="mb-0">
+                    <button class="btn btn-link text-dark text-decoration-none p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#adminSectionCollapse" aria-expanded="false" aria-controls="adminSectionCollapse">
+                        <i class="bi bi-shield-lock"></i> Admin
+                        <i class="bi bi-chevron-down ms-2"></i>
+                    </button>
+                </h5>
+            </div>
+            <div class="collapse" id="adminSectionCollapse">
+            <div class="card-body">
         <!-- Upload Section -->
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
@@ -369,10 +381,11 @@
             </div>
             </div>
         </div>
-        {% endif %}
+            </div>
+            </div>
+        </div>
 
-        <!-- User Management (Admin Only) -->
-        {% if user_role == 'Admin' %}
+        <!-- User Management -->
         <div class="card mb-4 border-0 shadow-sm">
             <div class="card-header bg-white border-bottom">
                 <h5 class="mb-0">
