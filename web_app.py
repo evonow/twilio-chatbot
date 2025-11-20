@@ -1232,32 +1232,75 @@ def get_example_questions():
                 if len(questions) >= 5:
                     break
             
-            # If we don't have enough questions, use fallback examples
+            # If we don't have enough questions, use fallback examples based on role
             if len(questions) < 3:
+                if user_role == 'Sales Rep':
+                    fallback_questions = [
+                        "How do I create a fundraiser?",
+                        "What are the latest features?",
+                        "How do I track fundraiser progress?",
+                        "What are the commission rates?",
+                        "How do I help customers with donations?"
+                    ]
+                elif user_role == 'Customer':
+                    fallback_questions = [
+                        "How do I make a donation?",
+                        "How do I create a fundraiser?",
+                        "What is your refund policy?",
+                        "How do I contact support?",
+                        "How do I share my fundraiser?"
+                    ]
+                else:  # Admin, Internal, or default
+                    fallback_questions = [
+                        "How do I create a fundraiser?",
+                        "What are the latest features?",
+                        "How do I track fundraiser progress?",
+                        "What is your refund policy?",
+                        "How do I contact support?"
+                    ]
+                questions = fallback_questions[:5]
+            
+            # Return at least 3 examples (up to 5)
+            questions = questions[:5]
+            if len(questions) < 3:
+                # Ultimate fallback
                 questions = [
                     "How do I create a fundraiser?",
-                    "How do I delete my profile?",
-                    "How do I add a donor?",
                     "How do I track donations?",
                     "How do I share my fundraiser?"
                 ]
             
             return jsonify({
                 'success': True,
-                'examples': questions[:5]  # Return top 5 examples
+                'examples': questions[:5],  # Return top 5 examples
+                'user_role': user_role  # Include role for frontend
             })
         except Exception as e:
             print(f"Error getting examples: {e}")
-            # Return fallback examples
-            return jsonify({
-                'success': True,
-                'examples': [
+            # Return fallback examples based on role
+            user_role = session.get('user_role', '')
+            if user_role == 'Sales Rep':
+                fallback = [
                     "How do I create a fundraiser?",
-                    "How do I delete my profile?",
-                    "How do I add a donor?",
+                    "What are the latest features?",
+                    "How do I track fundraiser progress?"
+                ]
+            elif user_role == 'Customer':
+                fallback = [
+                    "How do I make a donation?",
+                    "How do I create a fundraiser?",
+                    "What is your refund policy?"
+                ]
+            else:
+                fallback = [
+                    "How do I create a fundraiser?",
                     "How do I track donations?",
                     "How do I share my fundraiser?"
                 ]
+            return jsonify({
+                'success': True,
+                'examples': fallback,
+                'user_role': user_role
             })
     except Exception as e:
         return jsonify({

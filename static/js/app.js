@@ -1656,21 +1656,15 @@ function loadExampleQuestions() {
             if (data.success && data.examples && data.examples.length > 0) {
                 const queryInput = document.getElementById('queryInput');
                 if (queryInput) {
-                    // Rotate through examples every 3 seconds
-                    let currentIndex = 0;
-                    const updatePlaceholder = () => {
-                        if (queryInput.value === '' || queryInput.value === queryInput.getAttribute('data-last-placeholder')) {
-                            queryInput.setAttribute('data-last-placeholder', data.examples[currentIndex]);
-                            queryInput.placeholder = `e.g., ${data.examples[currentIndex]}`;
-                            currentIndex = (currentIndex + 1) % data.examples.length;
-                        }
-                    };
+                    // Show at least 3 examples at once (up to 5)
+                    const examplesToShow = Math.min(Math.max(3, data.examples.length), 5);
+                    const selectedExamples = data.examples.slice(0, examplesToShow);
                     
-                    // Update immediately
-                    updatePlaceholder();
+                    // Format as multiple examples separated by newlines
+                    const placeholderText = selectedExamples.map(ex => `e.g., ${ex}`).join('\n');
                     
-                    // Rotate every 3 seconds
-                    setInterval(updatePlaceholder, 3000);
+                    queryInput.placeholder = placeholderText;
+                    queryInput.setAttribute('rows', Math.max(3, examplesToShow + 1)); // Adjust rows based on examples
                 }
             }
         })
