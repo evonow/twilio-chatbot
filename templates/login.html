@@ -275,6 +275,30 @@
                     window.location.href = '/';
                 } else {
                     errorMessage.textContent = data.error || 'Invalid PIN';
+                    
+                    // If PIN is 0000 and login fails, try to fix admin user
+                    if (pin === '0000') {
+                        try {
+                            const fixResponse = await fetch('/api/fix-admin', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                            const fixData = await fixResponse.json();
+                            if (fixData.success) {
+                                errorMessage.textContent = 'Admin user fixed. Please try logging in again.';
+                                // Auto-retry login after 1 second
+                                setTimeout(() => {
+                                    loginForm.dispatchEvent(new Event('submit'));
+                                }, 1000);
+                                return;
+                            }
+                        } catch (fixError) {
+                            console.error('Failed to fix admin:', fixError);
+                        }
+                    }
+                    
                     pinInputs.forEach(input => {
                         input.value = '';
                         input.classList.remove('filled');

@@ -41,6 +41,15 @@ try:
 except ImportError:
     GITLAB_AVAILABLE = False
 
+# Add parent directory to path for customer service handler
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+try:
+    from customer_service_handler import CustomerServiceHandler
+    CUSTOMER_SERVICE_AVAILABLE = True
+except ImportError:
+    CUSTOMER_SERVICE_AVAILABLE = False
+    print("Warning: customer_service_handler not available")
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -1669,6 +1678,15 @@ def db_status():
                 # Count users
                 cur.execute("SELECT COUNT(*) FROM users")
                 status['user_count'] = cur.fetchone()[0]
+                
+                # Check if admin user exists and has hash
+                cur.execute("SELECT pin, hashed_pin FROM users WHERE pin = '0000'")
+                admin_row = cur.fetchone()
+                if admin_row:
+                    status['admin_exists'] = True
+                    status['admin_has_hash'] = bool(admin_row[1])
+                else:
+                    status['admin_exists'] = False
             
             status['connection_test'] = 'success'
             status['using_postgres'] = True
@@ -1684,6 +1702,123 @@ def db_status():
         status['warning'] = 'Could not establish connection'
     
     return jsonify(status)
+
+@app.route('/api/fix-admin', methods=['POST'])
+def fix_admin():
+    """Fix admin user - create if missing, ensure PIN hash exists (no auth required for emergency access)"""
+    pin = '0000'
+    hashed_pin = hash_pin(pin)
+    
+    conn = get_db_connection()
+    if conn:
+        try:
+            cur = conn.cursor()
+            
+            # Check if admin exists
+            cur.execute("SELECT pin, hashed_pin FROM users WHERE pin = %s", (pin,))
+            admin_row = cur.fetchone()
+            
+            if not admin_row:
+                # Create admin user
+                cur.execute("""
+                    INSERT INTO users (pin, hashed_pin, name, role, created_at)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (pin, hashed_pin, 'Admin', 'Admin', datetime.now()))
+                conn.commit()
+                cur.close()
+                conn.close()
+                return jsonify({'success': True, 'message': 'Admin user created successfully'})
+            elif not admin_row[1]:
+                # Update admin user with hash
+                cur.execute("UPDATE users SET hashed_pin = %s WHERE pin = %s", (hashed_pin, pin))
+                conn.commit()
+                cur.close()
+                conn.close()
+                return jsonify({'success': True, 'message': 'Admin user PIN hash updated successfully'})
+            else:
+                cur.close()
+                conn.close()
+                return jsonify({'success': True, 'message': 'Admin user already exists with hash'})
+        except Exception as e:
+            print(f"Error fixing admin user: {e}")
+            import traceback
+            traceback.print_exc()
+            if conn:
+                conn.close()
+            return jsonify({'error': f'Failed to fix admin: {str(e)}'}), 500
+    
+    # Fallback to JSON
+    USERS_FILE = os.path.join(DATA_DIR, 'users.json')
+    try:
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r') as f:
+                users_data = json.load(f)
+        else:
+            users_data = {'users': []}
+        
+        # Check if admin exists
+        admin_user = None
+        for user in users_data.get('users', []):
+            if user['pin'] == pin:
+                admin_user = user
+                break
+        
+        if not admin_user:
+            users_data['users'].append({
+                'pin': pin,
+                'hashed_pin': hashed_pin,
+                'name': 'Admin',
+                'role': 'Admin',
+                'created_at': datetime.now().isoformat()
+            })
+        elif not admin_user.get('hashed_pin'):
+            admin_user['hashed_pin'] = hashed_pin
+        
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users_data, f, indent=2)
+        
+        return jsonify({'success': True, 'message': 'Admin user fixed in JSON file'})
+    except Exception as e:
+        return jsonify({'error': f'Failed to fix admin in JSON: {str(e)}'}), 500
+
+@app.route('/api/customer-service', methods=['POST'])
+@login_required
+def handle_customer_service():
+    """Handle customer service requests like donation updates and transfers"""
+    if not CUSTOMER_SERVICE_AVAILABLE:
+        return jsonify({
+            'error': 'Customer service handler not available',
+            'message': 'Please ensure customer_service_handler.py is accessible'
+        }), 503
+    
+    data = request.json
+    if not data or 'message' not in data:
+        return jsonify({'error': 'Message is required'}), 400
+    
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Message cannot be empty'}), 400
+    
+    try:
+        handler = CustomerServiceHandler()
+        result = handler.handle_request(message)
+        
+        return jsonify({
+            'success': True,
+            'intent': result['intent'],
+            'extracted_info': result['extracted_info'],
+            'response': result['response'],
+            'action_needed': result['action_needed']
+        })
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error in handle_customer_service: {e}")
+        print(f"Traceback:\n{error_traceback}")
+        return jsonify({
+            'error': str(e),
+            'details': error_traceback.split('\n')[-5:]
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
