@@ -13,7 +13,7 @@
         <div class="container">
             <span class="navbar-brand mb-0 h1 d-flex align-items-center gap-2">
                 <img src="https://groupfund.us/logo.png" alt="GroupFund" style="height: 32px; width: auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-                <i class="bi bi-chat-dots" style="display: none;"></i>
+                <i class="bi bi-chat-dots" style="display: inline-block;"></i>
                 Ask GroupFund
             </span>
             <div class="d-flex align-items-center gap-3">
@@ -28,9 +28,11 @@
                     <i class="bi bi-person-circle"></i> 
                     <span id="userInfo">{{ user_name or 'User' }} ({{ user_role or 'Unknown' }})</span>
                 </span>
-                <button class="btn btn-outline-light btn-sm" id="logoutBtn">
-                    <i class="bi bi-box-arrow-right"></i> Logout
-                </button>
+                <form id="logoutForm" method="POST" action="/logout" style="display: inline;">
+                    <button type="submit" class="btn btn-outline-light btn-sm" id="logoutBtn">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </button>
+                </form>
             </div>
         </div>
     </nav>

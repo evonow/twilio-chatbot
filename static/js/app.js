@@ -79,21 +79,33 @@ function initializeEventListeners() {
         clearAllFilesBtn.addEventListener('click', clearAllFiles);
     }
     
-    // Logout button - attach event listener with better error handling
+    // Logout button/form - handle both click and form submission
     const logoutBtn = document.getElementById('logoutBtn');
+    const logoutForm = document.getElementById('logoutForm');
+    
     if (logoutBtn) {
+        // Handle button click
         logoutBtn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            console.log('Logout button clicked');
             logout();
         });
-        // Also handle form submission if button is in a form
-        logoutBtn.addEventListener('submit', function(e) {
+    }
+    
+    if (logoutForm) {
+        // Handle form submission
+        logoutForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            e.stopPropagation();
+            console.log('Logout form submitted');
             logout();
+            return false;
         });
-    } else {
-        console.warn('Logout button not found');
+    }
+    
+    if (!logoutBtn && !logoutForm) {
+        console.warn('Logout button/form not found');
     }
     
     // Admin user management
@@ -1494,36 +1506,56 @@ function logout() {
     console.log('Logout function called');
     
     if (!confirm('Are you sure you want to logout?')) {
-        return;
+        return false;
     }
     
-    // Clear session immediately and redirect
-    // Use a more direct approach
-    fetch('/logout', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        credentials: 'include' // Ensure cookies/session are sent
-    })
-    .then(response => {
-        console.log('Logout response:', response.status, response.statusText);
-        // Always redirect to login regardless of response
-        window.location.href = '/login';
-    })
-    .catch(error => {
-        console.error('Logout error:', error);
-        // Even on error, redirect to login
-        window.location.href = '/login';
-    });
-    
-    // Fallback: redirect after a short delay if fetch fails silently
-    setTimeout(() => {
-        if (window.location.pathname !== '/login') {
-            console.log('Fallback redirect to login');
-            window.location.href = '/login';
+    // Try multiple approaches to ensure logout works
+    try {
+        // Approach 1: Direct form submission (most reliable)
+        const logoutForm = document.getElementById('logoutForm');
+        if (logoutForm) {
+            console.log('Submitting logout form directly');
+            // Create a form and submit it
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/logout';
+            document.body.appendChild(form);
+            form.submit();
+            return false;
         }
-    }, 1000);
+        
+        // Approach 2: Fetch with immediate redirect
+        fetch('/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include'
+        })
+        .then(response => {
+            console.log('Logout response:', response.status, response.statusText);
+            window.location.href = '/login';
+        })
+        .catch(error => {
+            console.error('Logout fetch error:', error);
+            window.location.href = '/login';
+        });
+        
+        // Approach 3: Fallback redirect
+        setTimeout(() => {
+            if (window.location.pathname !== '/login') {
+                console.log('Fallback redirect to login');
+                window.location.href = '/login';
+            }
+        }, 500);
+        
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Last resort: direct redirect
+        window.location.href = '/login';
+    }
+    
+    return false;
 }
 
 function checkDbStatus() {
