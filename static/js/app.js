@@ -1685,17 +1685,10 @@ function loadExampleQuestions() {
                                 examplesToShow.push(allExamples[idx]);
                             }
                             
-                            // Show first example in placeholder
-                            const placeholderText = `e.g., ${examplesToShow[0]}`;
+                            // Show all 3 examples in placeholder separated by " | "
+                            const placeholderText = examplesToShow.map(ex => `e.g., ${ex}`).join(' | ');
                             queryInput.placeholder = placeholderText;
                             queryInput.setAttribute('rows', '2'); // Keep rows at 2
-                            
-                            // Show all 3 examples in a hint below the textarea
-                            const examplesHint = document.getElementById('examplesHint');
-                            if (examplesHint) {
-                                const examplesText = examplesToShow.map((ex, idx) => `${idx + 1}. ${ex}`).join(' • ');
-                                examplesHint.textContent = `Examples: ${examplesText}`;
-                            }
                             
                             // Store current examples for display
                             queryInput.setAttribute('data-examples', JSON.stringify(examplesToShow));
@@ -1708,8 +1701,8 @@ function loadExampleQuestions() {
                     // Update immediately
                     updatePlaceholder();
                     
-                    // Rotate every 4 seconds
-                    setInterval(updatePlaceholder, 4000);
+                    // Rotate every 7 seconds
+                    setInterval(updatePlaceholder, 7000);
                 }
             }
         })
