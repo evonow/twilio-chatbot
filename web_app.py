@@ -475,10 +475,13 @@ def login():
         return redirect(url_for('index'))
     return render_template('login.html')
 
-@app.route('/logout', methods=['POST'])
+@app.route('/logout', methods=['POST', 'GET'])
 def logout():
     """Logout"""
     session.clear()
+    # If it's a GET request (direct link), redirect to login
+    if request.method == 'GET':
+        return redirect(url_for('login'))
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
 @app.route('/api/auth/status')
