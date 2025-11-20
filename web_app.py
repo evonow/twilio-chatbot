@@ -1343,10 +1343,12 @@ def get_example_questions():
                         "What is your refund policy?",
                         "How do I contact support?"
                     ]
-                questions = fallback_questions[:5]
+                questions.extend(fallback_questions)
             
-            # Return at least 3 examples (up to 5)
-            questions = questions[:5]
+            # Return more examples for Internal users (up to 15), others get up to 5
+            max_examples = 15 if user_role == 'Internal' else 5
+            questions = questions[:max_examples]
+            
             if len(questions) < 3:
                 # Ultimate fallback
                 questions = [
@@ -1357,7 +1359,7 @@ def get_example_questions():
             
             return jsonify({
                 'success': True,
-                'examples': questions[:5],  # Return top 5 examples
+                'examples': questions,  # Return all examples (up to max_examples)
                 'user_role': user_role  # Include role for frontend
             })
         except Exception as e:
@@ -1388,7 +1390,12 @@ def get_example_questions():
                     "What is your refund policy?",
                     "How do I contact support?",
                     "How do I manage user accounts?",
-                    "What are the system requirements?"
+                    "What are the system requirements?",
+                    "What new features were added?",
+                    "How do I use the new functionality?",
+                    "What improvements were made?",
+                    "How do I access the latest updates?",
+                    "What are the recent changes?"
                 ]
             else:  # Admin or default
                 fallback = [
