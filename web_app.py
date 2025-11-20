@@ -479,10 +479,10 @@ def login():
 def logout():
     """Logout"""
     session.clear()
-    # If it's a GET request (direct link), redirect to login
-    if request.method == 'GET':
-        return redirect(url_for('login'))
-    return jsonify({'success': True, 'message': 'Logged out successfully'})
+    print(f"✅ Logout successful for user: {session.get('user_name', 'Unknown')}")
+    
+    # Always redirect to login page
+    return redirect(url_for('login'))
 
 @app.route('/api/auth/status')
 def auth_status():

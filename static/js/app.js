@@ -1509,52 +1509,17 @@ function logout() {
         return false;
     }
     
-    // Try multiple approaches to ensure logout works
-    try {
-        // Approach 1: Direct form submission (most reliable)
-        const logoutForm = document.getElementById('logoutForm');
-        if (logoutForm) {
-            console.log('Submitting logout form directly');
-            // Create a form and submit it
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/logout';
-            document.body.appendChild(form);
-            form.submit();
-            return false;
-        }
-        
-        // Approach 2: Fetch with immediate redirect
-        fetch('/logout', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-        })
-        .then(response => {
-            console.log('Logout response:', response.status, response.statusText);
-            window.location.href = '/login';
-        })
-        .catch(error => {
-            console.error('Logout fetch error:', error);
-            window.location.href = '/login';
-        });
-        
-        // Approach 3: Fallback redirect
-        setTimeout(() => {
-            if (window.location.pathname !== '/login') {
-                console.log('Fallback redirect to login');
-                window.location.href = '/login';
-            }
-        }, 500);
-        
-    } catch (error) {
-        console.error('Logout error:', error);
-        // Last resort: direct redirect
-        window.location.href = '/login';
+    // Use form submission (most reliable method)
+    const logoutForm = document.getElementById('logoutForm');
+    if (logoutForm) {
+        console.log('Submitting logout form');
+        // Let the form submit naturally - backend will redirect
+        return true; // Allow form submission
     }
     
+    // Fallback: direct redirect if form not found
+    console.log('Form not found, redirecting directly');
+    window.location.href = '/logout';
     return false;
 }
 
