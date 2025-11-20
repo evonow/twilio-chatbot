@@ -1181,55 +1181,130 @@ def get_example_questions():
         
         # Get sample documents from knowledge base
         try:
-            # Use a generic query to get sample documents
-            sample_query = "customer question help support"
-            sample_docs = chatbot._retrieve_relevant_context(sample_query, n_results=50, audience=audience_filter)
-            
-            # Extract questions from sample documents, filtering out CS rep messages
             import re
             questions = []
+            
+            # For Internal users, prioritize release notes and features
+            if user_role == 'Internal':
+                # Query for release notes and features specifically
+                release_queries = [
+                    "release notes features updates",
+                    "new features functionality",
+                    "latest updates improvements",
+                    "what's new features"
+                ]
+                
+                all_docs = []
+                for query in release_queries:
+                    docs = chatbot._retrieve_relevant_context(query, n_results=30, audience=audience_filter)
+                    all_docs.extend(docs)
+                
+                # Also get general docs
+                general_docs = chatbot._retrieve_relevant_context("customer question help support", n_results=30, audience=audience_filter)
+                all_docs.extend(general_docs)
+                
+                # Remove duplicates based on text content
+                seen_texts = set()
+                unique_docs = []
+                for doc in all_docs:
+                    text_hash = hash(doc.get('text', '')[:100])  # Hash first 100 chars
+                    if text_hash not in seen_texts:
+                        seen_texts.add(text_hash)
+                        unique_docs.append(doc)
+                
+                sample_docs = unique_docs[:100]  # Use up to 100 unique docs
+            else:
+                # For other roles, use generic query
+                sample_query = "customer question help support"
+                sample_docs = chatbot._retrieve_relevant_context(sample_query, n_results=50, audience=audience_filter)
+            
+            # Extract questions and feature descriptions from sample documents
             question_patterns = [
                 r'(?:how|what|why|when|where|can|could|would|will|do|does|did|is|are|was|were)\s+[^?.!]+[?]',
                 r'I\s+(?:can\'?t|cannot|need|want|would like|am trying|am having trouble)\s+[^?.!]+[?.!]',
                 r'(?:help|assist|support).*[?]',
             ]
             
+            # For Internal users, also extract feature descriptions from release notes
+            feature_patterns = [
+                r'(?:new|added|improved|enhanced|updated|fixed)\s+[^.!]+[.!]',
+                r'(?:feature|functionality|capability|option|setting)\s+[^.!]+[.!]',
+                r'(?:you can|users can|now|able to)\s+[^.!]+[.!]',
+            ]
+            
             for doc in sample_docs:
                 metadata = doc.get('metadata', {})
+                source = metadata.get('source', '').lower()
                 from_email = metadata.get('from', '').lower()
                 from_name = metadata.get('from_name', '').lower()
                 
-                # Skip if from customer service reps
+                # Skip if from customer service reps (unless it's a release note/doc)
                 is_cs_rep = False
-                for cs_rep in CS_REPS:
-                    if cs_rep.lower() in from_email or cs_rep.lower() in from_name:
-                        is_cs_rep = True
-                        break
+                if source not in ['docx', 'pdf', 'gitlab_release_notes', 'gitlab_readme', 'google_docs']:
+                    for cs_rep in CS_REPS:
+                        if cs_rep.lower() in from_email or cs_rep.lower() in from_name:
+                            is_cs_rep = True
+                            break
                 
                 if is_cs_rep:
                     continue  # Skip customer service rep messages
                 
                 text = doc.get('text', '')
-                # Also check if text contains common CS rep signatures
-                if any(sig in text.lower() for sig in ['anton slav', 'groupfund.us', 'best, anton', 'thanks, anton']):
-                    continue
+                # Also check if text contains common CS rep signatures (unless it's a doc)
+                if source not in ['docx', 'pdf', 'gitlab_release_notes', 'gitlab_readme', 'google_docs']:
+                    if any(sig in text.lower() for sig in ['anton slav', 'groupfund.us', 'best, anton', 'thanks, anton']):
+                        continue
                 
+                # Extract questions
                 for pattern in question_patterns:
                     matches = re.findall(pattern, text, re.IGNORECASE)
                     for match in matches:
                         question = match.strip()
                         # Clean up and validate
                         if len(question) > 15 and len(question) < 100:
-                            # Remove extra whitespace and clean
                             question = ' '.join(question.split())
-                            # Skip if it looks like a response, not a question
                             if any(phrase in question.lower() for phrase in ['thank you', 'thanks', 'best,', 'regards,', 'sincerely']):
                                 continue
                             if question not in questions:
                                 questions.append(question)
-                                if len(questions) >= 5:
-                                    break
-                if len(questions) >= 5:
+                
+                # For Internal users, also extract features and convert to questions
+                if user_role == 'Internal':
+                    for pattern in feature_patterns:
+                        matches = re.findall(pattern, text, re.IGNORECASE)
+                        for match in matches:
+                            feature = match.strip()
+                            # Convert feature description to question format
+                            if len(feature) > 20 and len(feature) < 120:
+                                feature = ' '.join(feature.split())
+                                # Convert to question: "New feature added" -> "What is the new feature?"
+                                # Or: "Users can now do X" -> "How do I do X?"
+                                question = None
+                                
+                                # Pattern: "New feature X" -> "What is feature X?"
+                                if re.match(r'^(?:new|added|improved|enhanced|updated)\s+', feature, re.IGNORECASE):
+                                    feature_name = re.sub(r'^(?:new|added|improved|enhanced|updated)\s+', '', feature, flags=re.IGNORECASE)
+                                    feature_name = re.sub(r'[.!]$', '', feature_name)
+                                    question = f"What is {feature_name}?"
+                                
+                                # Pattern: "Users can now X" -> "How do I X?"
+                                elif re.match(r'^(?:you can|users can|now|able to)\s+', feature, re.IGNORECASE):
+                                    action = re.sub(r'^(?:you can|users can|now|able to)\s+', '', feature, flags=re.IGNORECASE)
+                                    action = re.sub(r'[.!]$', '', action)
+                                    question = f"How do I {action}?"
+                                
+                                # Pattern: "Feature X allows Y" -> "How does feature X work?"
+                                elif 'feature' in feature.lower() or 'functionality' in feature.lower():
+                                    question = f"How does {feature.lower().rstrip('.!')} work?"
+                                
+                                if question and len(question) > 15 and len(question) < 100:
+                                    question = ' '.join(question.split())
+                                    if question not in questions:
+                                        questions.append(question)
+                
+                # Stop if we have enough questions (more for Internal)
+                max_questions = 15 if user_role == 'Internal' else 5
+                if len(questions) >= max_questions:
                     break
             
             # If we don't have enough questions, use fallback examples based on role
