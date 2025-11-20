@@ -330,8 +330,44 @@ def login():
         data = request.get_json()
         pin = data.get('pin', '').strip()
         
+        print(f"🔐 Login attempt with PIN: {pin}")
+        
         if not pin or len(pin) != 4 or not pin.isdigit():
             return jsonify({'error': 'Invalid PIN. Must be 4 digits.'}), 400
+        
+        # Special handling for admin PIN 0000 - ensure it exists
+        if pin == '0000':
+            print("🔧 Admin PIN detected - ensuring admin user exists...")
+            conn = get_db_connection()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT pin, hashed_pin FROM users WHERE pin = '0000'")
+                    admin_row = cur.fetchone()
+                    if not admin_row:
+                        print("⚠️ Admin user missing - creating now...")
+                        hashed_pin = hash_pin('0000')
+                        cur.execute("""
+                            INSERT INTO users (pin, hashed_pin, name, role, created_at)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (pin) DO UPDATE SET hashed_pin = EXCLUDED.hashed_pin
+                        """, ('0000', hashed_pin, 'Admin', 'Admin', datetime.now()))
+                        conn.commit()
+                        print("✅ Admin user created")
+                    elif not admin_row[1]:
+                        print("⚠️ Admin user missing hash - updating now...")
+                        hashed_pin = hash_pin('0000')
+                        cur.execute("UPDATE users SET hashed_pin = %s WHERE pin = '0000'", (hashed_pin,))
+                        conn.commit()
+                        print("✅ Admin user hash updated")
+                    cur.close()
+                    conn.close()
+                except Exception as e:
+                    print(f"❌ Error ensuring admin exists: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    if conn:
+                        conn.close()
         
         # Check PostgreSQL first if available
         conn = get_db_connection()
@@ -340,23 +376,31 @@ def login():
                 cur = conn.cursor()
                 cur.execute("SELECT pin, hashed_pin, name, role FROM users WHERE pin = %s", (pin,))
                 row = cur.fetchone()
+                print(f"📊 PostgreSQL query result: {row}")
                 if row:
                     stored_pin, stored_hash, name, role = row
-                    if stored_hash and verify_pin(pin, stored_hash):
-                        session.permanent = True
-                        session['user_pin'] = stored_pin
-                        session['user_role'] = role
-                        session['user_name'] = name or 'User'
-                        cur.close()
-                        conn.close()
-                        return jsonify({
-                            'success': True,
-                            'message': 'Login successful',
-                            'role': role,
-                            'name': name or 'User'
-                        })
+                    print(f"🔍 Found user: pin={stored_pin}, has_hash={bool(stored_hash)}, name={name}, role={role}")
+                    
+                    if stored_hash:
+                        pin_valid = verify_pin(pin, stored_hash)
+                        print(f"🔐 PIN verification result: {pin_valid}")
+                        if pin_valid:
+                            session.permanent = True
+                            session['user_pin'] = stored_pin
+                            session['user_role'] = role
+                            session['user_name'] = name or 'User'
+                            cur.close()
+                            conn.close()
+                            print(f"✅ Login successful for {name}")
+                            return jsonify({
+                                'success': True,
+                                'message': 'Login successful',
+                                'role': role,
+                                'name': name or 'User'
+                            })
                     elif not stored_hash and stored_pin == pin:
                         # Upgrade to hashed PIN
+                        print("🔄 Upgrading user to hashed PIN...")
                         hashed = hash_pin(pin)
                         cur.execute("UPDATE users SET hashed_pin = %s WHERE pin = %s", (hashed, pin))
                         conn.commit()
@@ -366,21 +410,30 @@ def login():
                         session['user_name'] = name or 'User'
                         cur.close()
                         conn.close()
+                        print(f"✅ Login successful (upgraded) for {name}")
                         return jsonify({
                             'success': True,
                             'message': 'Login successful',
                             'role': role,
                             'name': name or 'User'
                         })
+                    else:
+                        print(f"❌ PIN mismatch or invalid hash")
+                else:
+                    print(f"❌ User not found in PostgreSQL")
                 cur.close()
                 conn.close()
             except Exception as e:
-                print(f"Error checking PostgreSQL for login: {e}")
+                print(f"❌ Error checking PostgreSQL for login: {e}")
+                import traceback
+                traceback.print_exc()
                 if conn:
                     conn.close()
         
         # Fallback to JSON file logic
+        print("📁 Falling back to JSON file...")
         users = load_users()
+        print(f"📊 Loaded {len(users)} users from JSON")
         for user in users:
             # Check if PIN matches (stored as hash or plain for now)
             if user.get('hashed_pin'):
@@ -389,6 +442,7 @@ def login():
                     session['user_pin'] = user['pin']
                     session['user_role'] = user['role']
                     session['user_name'] = user.get('name', 'User')
+                    print(f"✅ Login successful from JSON for {user.get('name')}")
                     return jsonify({
                         'success': True,
                         'message': 'Login successful',
@@ -405,6 +459,7 @@ def login():
                     # Upgrade to hashed PIN
                     user['hashed_pin'] = hash_pin(pin)
                     save_users(users)
+                    print(f"✅ Login successful from JSON (upgraded) for {user.get('name')}")
                     return jsonify({
                         'success': True,
                         'message': 'Login successful',
@@ -412,6 +467,7 @@ def login():
                         'name': user.get('name', 'User')
                     })
         
+        print(f"❌ Login failed - PIN not found")
         return jsonify({'error': 'Invalid PIN'}), 401
     
     # GET request - show login page
