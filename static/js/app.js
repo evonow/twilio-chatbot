@@ -1656,15 +1656,43 @@ function loadExampleQuestions() {
             if (data.success && data.examples && data.examples.length > 0) {
                 const queryInput = document.getElementById('queryInput');
                 if (queryInput) {
-                    // Show at least 3 examples at once (up to 5)
-                    const examplesToShow = Math.min(Math.max(3, data.examples.length), 5);
-                    const selectedExamples = data.examples.slice(0, examplesToShow);
+                    // Ensure we have at least 3 examples
+                    const allExamples = data.examples.length >= 3 ? data.examples : data.examples.concat([
+                        "How do I create a fundraiser?",
+                        "How do I track donations?",
+                        "How do I share my fundraiser?"
+                    ]).slice(0, Math.max(3, data.examples.length));
                     
-                    // Format as multiple examples separated by newlines
-                    const placeholderText = selectedExamples.map(ex => `e.g., ${ex}`).join('\n');
+                    // Rotate through 3 examples at a time
+                    let currentIndex = 0;
+                    const examplesPerRotation = 3;
                     
-                    queryInput.placeholder = placeholderText;
-                    queryInput.setAttribute('rows', Math.max(3, examplesToShow + 1)); // Adjust rows based on examples
+                    const updatePlaceholder = () => {
+                        // Only update if input is empty or matches previous placeholder
+                        if (queryInput.value === '' || queryInput.value.trim() === '') {
+                            // Get next 3 examples (wrapping around)
+                            const examplesToShow = [];
+                            for (let i = 0; i < examplesPerRotation; i++) {
+                                const idx = (currentIndex + i) % allExamples.length;
+                                examplesToShow.push(allExamples[idx]);
+                            }
+                            
+                            // Format as multiple examples separated by newlines
+                            const placeholderText = examplesToShow.map(ex => `e.g., ${ex}`).join('\n');
+                            
+                            queryInput.placeholder = placeholderText;
+                            queryInput.setAttribute('rows', Math.max(3, examplesPerRotation + 1));
+                            
+                            // Move to next set of 3 examples
+                            currentIndex = (currentIndex + examplesPerRotation) % allExamples.length;
+                        }
+                    };
+                    
+                    // Update immediately
+                    updatePlaceholder();
+                    
+                    // Rotate every 4 seconds
+                    setInterval(updatePlaceholder, 4000);
                 }
             }
         })

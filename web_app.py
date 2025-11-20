@@ -1250,7 +1250,17 @@ def get_example_questions():
                         "How do I contact support?",
                         "How do I share my fundraiser?"
                     ]
-                else:  # Admin, Internal, or default
+                elif user_role == 'Internal':
+                    fallback_questions = [
+                        "How do I create a fundraiser?",
+                        "What are the latest features?",
+                        "How do I track fundraiser progress?",
+                        "What is your refund policy?",
+                        "How do I contact support?",
+                        "How do I manage user accounts?",
+                        "What are the system requirements?"
+                    ]
+                else:  # Admin or default
                     fallback_questions = [
                         "How do I create a fundraiser?",
                         "What are the latest features?",
@@ -1283,19 +1293,35 @@ def get_example_questions():
                 fallback = [
                     "How do I create a fundraiser?",
                     "What are the latest features?",
-                    "How do I track fundraiser progress?"
+                    "How do I track fundraiser progress?",
+                    "What are the commission rates?",
+                    "How do I help customers with donations?"
                 ]
             elif user_role == 'Customer':
                 fallback = [
                     "How do I make a donation?",
                     "How do I create a fundraiser?",
-                    "What is your refund policy?"
+                    "What is your refund policy?",
+                    "How do I contact support?",
+                    "How do I share my fundraiser?"
                 ]
-            else:
+            elif user_role == 'Internal':
+                fallback = [
+                    "How do I create a fundraiser?",
+                    "What are the latest features?",
+                    "How do I track fundraiser progress?",
+                    "What is your refund policy?",
+                    "How do I contact support?",
+                    "How do I manage user accounts?",
+                    "What are the system requirements?"
+                ]
+            else:  # Admin or default
                 fallback = [
                     "How do I create a fundraiser?",
                     "How do I track donations?",
-                    "How do I share my fundraiser?"
+                    "How do I share my fundraiser?",
+                    "What are the latest features?",
+                    "How do I contact support?"
                 ]
             return jsonify({
                 'success': True,
