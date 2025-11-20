@@ -1488,19 +1488,30 @@ function logout() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'same-origin' // Ensure cookies/session are sent
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
+    .then(response => {
+        // Check if response is ok or redirected
+        if (response.ok || response.redirected) {
             window.location.href = '/login';
-        } else {
-            showToast('Logout failed', 'danger');
+            return;
         }
+        // Try to parse JSON
+        return response.json().then(data => {
+            if (data.success) {
+                window.location.href = '/login';
+            } else {
+                showToast('Logout failed', 'danger');
+            }
+        }).catch(() => {
+            // If JSON parsing fails, still redirect to login
+            window.location.href = '/login';
+        });
     })
     .catch(error => {
         console.error('Logout error:', error);
-        // Redirect anyway
+        // Even on error, try to redirect to login
         window.location.href = '/login';
     });
 }
