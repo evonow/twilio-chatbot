@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - GroupFund Knows</title>
+    <title>Login - Ask GroupFund</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
@@ -122,7 +122,7 @@
     <div class="login-container">
         <div class="login-header">
             <img src="https://groupfund.us/logo.png" alt="GroupFund" style="height: 48px; width: auto; margin-bottom: 1rem;" onerror="this.style.display='none';">
-            <h1>GroupFund Knows</h1>
+            <h1>Ask GroupFund</h1>
             <p>Enter your 4-digit PIN to continue</p>
         </div>
         
@@ -141,19 +141,6 @@
             </button>
         </form>
         
-        <div class="keypad">
-            <button class="keypad-btn" data-number="1">1</button>
-            <button class="keypad-btn" data-number="2">2</button>
-            <button class="keypad-btn" data-number="3">3</button>
-            <button class="keypad-btn" data-number="4">4</button>
-            <button class="keypad-btn" data-number="5">5</button>
-            <button class="keypad-btn" data-number="6">6</button>
-            <button class="keypad-btn" data-number="7">7</button>
-            <button class="keypad-btn" data-number="8">8</button>
-            <button class="keypad-btn" data-number="9">9</button>
-            <button class="keypad-btn clear" id="clearBtn">Clear</button>
-            <button class="keypad-btn" data-number="0">0</button>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -162,12 +149,18 @@
         const errorMessage = document.getElementById('errorMessage');
         const loginForm = document.getElementById('loginForm');
         const loginBtn = document.getElementById('loginBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        
-        let currentPinIndex = 0;
         
         // Focus first input on load
         pinInputs[0].focus();
+        
+        // Function to check if all PIN digits are entered and auto-submit
+        function checkAndSubmit() {
+            const pin = pinInputs.map(input => input.value).join('');
+            if (pin.length === 4) {
+                // All 4 digits entered, auto-submit
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        }
         
         // Handle input
         pinInputs.forEach((input, index) => {
@@ -180,6 +173,9 @@
                 }
                 
                 updatePinDisplay();
+                
+                // Auto-submit when 4 digits are entered
+                checkAndSubmit();
             });
             
             input.addEventListener('keydown', (e) => {
@@ -198,50 +194,20 @@
                 });
                 updatePinDisplay();
                 pinInputs[Math.min(paste.length, pinInputs.length - 1)].focus();
+                
+                // Auto-submit if 4 digits pasted
+                checkAndSubmit();
             });
-        });
-        
-        // Keypad buttons
-        document.querySelectorAll('.keypad-btn[data-number]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const number = btn.dataset.number;
-                if (currentPinIndex < pinInputs.length) {
-                    pinInputs[currentPinIndex].value = number;
-                    pinInputs[currentPinIndex].classList.add('filled');
-                    pinInputs[currentPinIndex].focus();
-                    if (currentPinIndex < pinInputs.length - 1) {
-                        currentPinIndex++;
-                    }
-                    updatePinDisplay();
-                }
-            });
-        });
-        
-        clearBtn.addEventListener('click', () => {
-            pinInputs.forEach(input => {
-                input.value = '';
-                input.classList.remove('filled');
-            });
-            currentPinIndex = 0;
-            pinInputs[0].focus();
-            errorMessage.textContent = '';
-            updatePinDisplay();
         });
         
         function updatePinDisplay() {
-            pinInputs.forEach((input, index) => {
+            pinInputs.forEach((input) => {
                 if (input.value) {
                     input.classList.add('filled');
                 } else {
                     input.classList.remove('filled');
                 }
             });
-            
-            // Update current index
-            currentPinIndex = pinInputs.findIndex(input => !input.value);
-            if (currentPinIndex === -1) {
-                currentPinIndex = pinInputs.length - 1;
-            }
         }
         
         // Form submission
