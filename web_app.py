@@ -1636,6 +1636,27 @@ def sms_reply():
     
     return Response(str(resp), mimetype='text/xml')
 
+@app.route('/api/twilio/webhook-url', methods=['GET'])
+def get_twilio_webhook_url():
+    """Get the Twilio webhook URL"""
+    # Try to get Railway public URL from environment
+    railway_url = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    
+    if railway_url:
+        # Railway provides domain without https://
+        if not railway_url.startswith('http'):
+            railway_url = f'https://{railway_url}'
+        webhook_url = f'{railway_url}/sms'
+    else:
+        # Fallback: construct from request
+        webhook_url = f'{request.scheme}://{request.host}/sms'
+    
+    return jsonify({
+        'webhook_url': webhook_url,
+        'endpoint': '/sms',
+        'method': 'POST'
+    })
+
 @app.route('/api/twilio/status', methods=['GET'])
 def twilio_status():
     """Get Twilio integration status"""
