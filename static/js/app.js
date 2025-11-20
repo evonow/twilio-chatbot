@@ -187,11 +187,10 @@ function initializeEventListeners() {
         queryInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault(); // Prevent new line
+                e.stopPropagation(); // Stop event propagation
                 // Trigger the Ask button click
                 const queryBtn = document.getElementById('queryBtn');
                 if (queryBtn && !queryBtn.disabled) {
-                    queryBtn.click();
-                } else {
                     queryChatbot();
                 }
             }
@@ -1677,8 +1676,8 @@ function loadExampleQuestions() {
                     const examplesPerRotation = 3;
                     
                     const updatePlaceholder = () => {
-                        // Only update if input is empty or matches previous placeholder
-                        if (queryInput.value === '' || queryInput.value.trim() === '') {
+                        // Only update if input is empty
+                        if (!queryInput.value || queryInput.value.trim() === '') {
                             // Get next 3 examples (wrapping around)
                             const examplesToShow = [];
                             for (let i = 0; i < examplesPerRotation; i++) {
@@ -1686,11 +1685,20 @@ function loadExampleQuestions() {
                                 examplesToShow.push(allExamples[idx]);
                             }
                             
-                            // Format as multiple examples separated by newlines
-                            const placeholderText = examplesToShow.map(ex => `e.g., ${ex}`).join('\n');
-                            
+                            // Show first example in placeholder
+                            const placeholderText = `e.g., ${examplesToShow[0]}`;
                             queryInput.placeholder = placeholderText;
-                            queryInput.setAttribute('rows', Math.max(3, examplesPerRotation + 1));
+                            queryInput.setAttribute('rows', '2'); // Keep rows at 2
+                            
+                            // Show all 3 examples in a hint below the textarea
+                            const examplesHint = document.getElementById('examplesHint');
+                            if (examplesHint) {
+                                const examplesText = examplesToShow.map((ex, idx) => `${idx + 1}. ${ex}`).join(' • ');
+                                examplesHint.textContent = `Examples: ${examplesText}`;
+                            }
+                            
+                            // Store current examples for display
+                            queryInput.setAttribute('data-examples', JSON.stringify(examplesToShow));
                             
                             // Move to next set of 3 examples
                             currentIndex = (currentIndex + examplesPerRotation) % allExamples.length;
