@@ -79,10 +79,21 @@ function initializeEventListeners() {
         clearAllFilesBtn.addEventListener('click', clearAllFiles);
     }
     
-    // Logout button
+    // Logout button - attach event listener with better error handling
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', logout);
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            logout();
+        });
+        // Also handle form submission if button is in a form
+        logoutBtn.addEventListener('submit', function(e) {
+            e.preventDefault();
+            logout();
+        });
+    } else {
+        console.warn('Logout button not found');
     }
     
     // Admin user management
@@ -1480,40 +1491,39 @@ function ingestGitLab() {
 }
 
 function logout() {
+    console.log('Logout function called');
+    
     if (!confirm('Are you sure you want to logout?')) {
         return;
     }
     
+    // Clear session immediately and redirect
+    // Use a more direct approach
     fetch('/logout', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        credentials: 'same-origin' // Ensure cookies/session are sent
+        credentials: 'include' // Ensure cookies/session are sent
     })
     .then(response => {
-        // Check if response is ok or redirected
-        if (response.ok || response.redirected) {
-            window.location.href = '/login';
-            return;
-        }
-        // Try to parse JSON
-        return response.json().then(data => {
-            if (data.success) {
-                window.location.href = '/login';
-            } else {
-                showToast('Logout failed', 'danger');
-            }
-        }).catch(() => {
-            // If JSON parsing fails, still redirect to login
-            window.location.href = '/login';
-        });
+        console.log('Logout response:', response.status, response.statusText);
+        // Always redirect to login regardless of response
+        window.location.href = '/login';
     })
     .catch(error => {
         console.error('Logout error:', error);
-        // Even on error, try to redirect to login
+        // Even on error, redirect to login
         window.location.href = '/login';
     });
+    
+    // Fallback: redirect after a short delay if fetch fails silently
+    setTimeout(() => {
+        if (window.location.pathname !== '/login') {
+            console.log('Fallback redirect to login');
+            window.location.href = '/login';
+        }
+    }, 1000);
 }
 
 function checkDbStatus() {
