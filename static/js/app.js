@@ -182,12 +182,21 @@ function initializeEventListeners() {
     }
     
     // Enter key for query - submit on Enter, new line on Shift+Enter
-    document.getElementById('queryInput').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevent new line
-            queryChatbot();
-        }
-    });
+    const queryInput = document.getElementById('queryInput');
+    if (queryInput) {
+        queryInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                // Trigger the Ask button click
+                const queryBtn = document.getElementById('queryBtn');
+                if (queryBtn && !queryBtn.disabled) {
+                    queryBtn.click();
+                } else {
+                    queryChatbot();
+                }
+            }
+        });
+    }
 }
 
 function handleDragOver(e) {
