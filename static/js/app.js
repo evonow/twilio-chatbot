@@ -211,9 +211,11 @@ function initializeEventListeners() {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault(); // Prevent new line
                 e.stopPropagation(); // Stop event propagation
-                // Trigger the Ask button click
-                const queryBtn = document.getElementById('queryBtn');
-                if (queryBtn && !queryBtn.disabled) {
+                
+                // Get the query value
+                const query = queryInput.value.trim();
+                if (query) {
+                    // Call queryChatbot directly
                     queryChatbot();
                 }
             }
@@ -1679,15 +1681,22 @@ function loadExampleQuestions() {
     fetch('/api/examples')
         .then(response => response.json())
         .then(data => {
+            console.log('Examples data received:', data);
             if (data.success && data.examples && data.examples.length > 0) {
                 const queryInput = document.getElementById('queryInput');
                 if (queryInput) {
                     // Ensure we have at least 3 examples
-                    const allExamples = data.examples.length >= 3 ? data.examples : data.examples.concat([
-                        "How do I create a fundraiser?",
-                        "How do I track donations?",
-                        "How do I share my fundraiser?"
-                    ]).slice(0, Math.max(3, data.examples.length));
+                    let allExamples = data.examples;
+                    if (allExamples.length < 3) {
+                        const fallbacks = [
+                            "How do I create a fundraiser?",
+                            "How do I track donations?",
+                            "How do I share my fundraiser?"
+                        ];
+                        allExamples = allExamples.concat(fallbacks).slice(0, Math.max(3, allExamples.length));
+                    }
+                    
+                    console.log('All examples:', allExamples);
                     
                     // Rotate through 3 examples at a time
                     let currentIndex = 0;
@@ -1702,6 +1711,8 @@ function loadExampleQuestions() {
                                 const idx = (currentIndex + i) % allExamples.length;
                                 examplesToShow.push(allExamples[idx]);
                             }
+                            
+                            console.log('Showing examples:', examplesToShow);
                             
                             // Show all 3 examples in placeholder separated by " | "
                             const placeholderText = examplesToShow.map(ex => `e.g., ${ex}`).join(' | ');
@@ -1721,7 +1732,11 @@ function loadExampleQuestions() {
                     
                     // Rotate every 7 seconds
                     setInterval(updatePlaceholder, 7000);
+                } else {
+                    console.warn('queryInput element not found');
                 }
+            } else {
+                console.warn('No examples received or invalid data:', data);
             }
         })
         .catch(error => {
