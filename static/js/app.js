@@ -216,6 +216,28 @@ function initializeEventListeners() {
                 const query = queryInput.value.trim();
                 if (query) {
                     // Call queryChatbot directly
+                    console.log('Enter key pressed, submitting query:', query);
+                    queryChatbot();
+                }
+            }
+        });
+        console.log('Enter key handler attached to queryInput');
+    } else {
+        console.warn('queryInput not found when attaching Enter key handler');
+    }
+    
+    // Enter key for query - submit on Enter, new line on Shift+Enter
+    const queryInput = document.getElementById('queryInput');
+    if (queryInput) {
+        queryInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                e.stopPropagation(); // Stop event propagation
+                
+                // Get the query value
+                const query = queryInput.value.trim();
+                if (query) {
+                    // Call queryChatbot directly
                     queryChatbot();
                 }
             }
