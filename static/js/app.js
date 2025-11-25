@@ -1596,22 +1596,49 @@ function checkDbStatus() {
 }
 
 function loadUsers() {
-    fetch('/api/users')
+    const tbody = document.getElementById('usersTableBody');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading users...</td></tr>';
+    }
+    
+    fetch('/api/users', {
+        credentials: 'include' // Include cookies for authentication
+    })
         .then(response => {
-            if (response.status === 401 || response.status === 403) {
-                showToast('Admin access required', 'danger');
-                return;
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    showToast('Admin access required', 'danger');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Admin access required</td></tr>';
+                    }
+                    return null;
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
             if (data && data.users) {
                 displayUsers(data.users);
+            } else if (data && data.error) {
+                console.error('API error:', data.error);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${data.error}</td></tr>`;
+                }
+                showToast('Failed to load users: ' + data.error, 'danger');
+            } else {
+                console.warn('Unexpected response format:', data);
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-warning">Unexpected response format</td></tr>';
+                }
             }
         })
         .catch(error => {
             console.error('Load users error:', error);
-            showToast('Failed to load users', 'danger');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error loading users: ${error.message}</td></tr>`;
+            }
+            showToast('Failed to load users: ' + error.message, 'danger');
         });
 }
 
