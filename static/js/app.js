@@ -946,13 +946,23 @@ function clearAllFiles() {
 }
 
 function loadStats() {
-    fetch('/api/stats')
-        .then(response => response.json())
+    fetch('/api/stats', {
+        credentials: 'include' // Include cookies for authentication
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 // Update navbar stats
                 const totalDocs = data.total_documents || 0;
-                document.getElementById('kb-stats-total').textContent = totalDocs.toLocaleString();
+                const totalElement = document.getElementById('kb-stats-total');
+                if (totalElement) {
+                    totalElement.textContent = totalDocs.toLocaleString();
+                }
                 
                 // Show document types breakdown in header
                 const docTypes = data.document_types || {};
@@ -963,23 +973,30 @@ function loadStats() {
                     .join(', ');
                 
                 const typesElement = document.getElementById('kb-stats-types');
-                if (typeCounts) {
-                    typesElement.textContent = typeCounts;
-                } else {
-                    typesElement.textContent = '';
+                if (typesElement) {
+                    if (typeCounts) {
+                        typesElement.textContent = typeCounts;
+                    } else {
+                        typesElement.textContent = '';
+                    }
                 }
                 
                 // Update detailed stats in Knowledge Base section
                 updateDetailedStats(data);
             } else {
-                document.getElementById('kb-stats-total').textContent = '-';
-                document.getElementById('kb-stats-types').textContent = '';
+                console.warn('Stats API returned success=false:', data);
+                const totalElement = document.getElementById('kb-stats-total');
+                const typesElement = document.getElementById('kb-stats-types');
+                if (totalElement) totalElement.textContent = '-';
+                if (typesElement) typesElement.textContent = '';
             }
         })
         .catch(error => {
             console.error('Stats error:', error);
-            document.getElementById('kb-stats-total').textContent = '-';
-            document.getElementById('kb-stats-types').textContent = '';
+            const totalElement = document.getElementById('kb-stats-total');
+            const typesElement = document.getElementById('kb-stats-types');
+            if (totalElement) totalElement.textContent = '-';
+            if (typesElement) typesElement.textContent = '';
         });
 }
 
