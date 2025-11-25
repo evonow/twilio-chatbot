@@ -48,6 +48,7 @@ uploads/
 *.mbox
 *.docx
 *.pdf
+!DOCUMENTATION.pdf
 chroma_db/
 *.db
 *.sqlite
