@@ -1,6 +1,8 @@
-# Twilio Customer Service Chatbot
+# Ask GroupFund - Twilio Customer Service Chatbot
 
 An intelligent chatbot built on Twilio SMS that answers questions using a knowledge base of past customer service interactions (emails and text messages). The system uses RAG (Retrieval Augmented Generation) with semantic search and LLM-powered responses.
+
+> 📚 **For complete documentation, see [DOCUMENTATION.md](DOCUMENTATION.md)**
 
 ## Features
 
@@ -198,6 +200,18 @@ twilio-chatbot/
 ## License
 
 [Add your license here]
+
+## Documentation
+
+For complete documentation including:
+- Detailed user guide
+- API reference
+- Architecture overview
+- Deployment instructions
+- Developer guide
+- Troubleshooting
+
+See **[DOCUMENTATION.md](DOCUMENTATION.md)**
 
 ## Support
 
