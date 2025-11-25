@@ -3,7 +3,10 @@
 **Version:** 1.0  
 **Last Updated:** November 2025  
 **Author:** Maksim Pereiaslavtsev  
-**Organization:** Digital Development Teams
+**Digital Development Teams**
+
+**Email:** tulamax@gmail.com  
+**Phone:** +7.910.940.5347
 
 ---
 
@@ -985,7 +988,7 @@ For issues, questions, or contributions:
 ---
 
 **Documentation maintained by:** Maksim Pereiaslavtsev  
-**Organization:** Digital Development Teams  
+**Digital Development Teams**  
 **Address:** Pereulok Ageyeva, 3, Tula, 300012, Russia  
 **Email:** tulamax@gmail.com  
 **Phone:** +7.910.940.5347  
