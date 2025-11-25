@@ -121,7 +121,7 @@
 <body>
     <div class="login-container">
         <div class="login-header">
-            <img src="https://groupfund.us/logo.png" alt="GroupFund" style="height: 48px; width: auto; margin-bottom: 1rem;" onerror="this.style.display='none';">
+            <img src="https://groupfund.us/logo.png" alt="GroupFund" style="height: 48px; width: auto; margin-bottom: 1rem; display: none;" onerror="this.style.display='none';">
             <h1>Ask GroupFund</h1>
             <p>Enter your 4-digit PIN to continue</p>
         </div>
@@ -269,7 +269,6 @@
                         input.value = '';
                         input.classList.remove('filled');
                     });
-                    currentPinIndex = 0;
                     pinInputs[0].focus();
                 }
             } catch (error) {

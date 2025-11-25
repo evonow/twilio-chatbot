@@ -1,12 +1,7 @@
 # Ask GroupFund - Complete Documentation
 
 **Version:** 1.0  
-**Last Updated:** November 2025  
-**Author:** Maksim Pereiaslavtsev  
-**Digital Development Teams**
-
-**Email:** tulamax@gmail.com  
-**Phone:** +7.910.940.5347
+**Last Updated:** December 2024
 
 ---
 
@@ -987,10 +982,6 @@ For issues, questions, or contributions:
 
 ---
 
-**Documentation maintained by:** Maksim Pereiaslavtsev  
-**Digital Development Teams**  
-**Address:** Pereulok Ageyeva, 3, Tula, 300012, Russia  
-**Email:** tulamax@gmail.com  
-**Phone:** +7.910.940.5347  
-**Last reviewed:** November 2025
+**Documentation maintained by:** GroupFund Development Team  
+**Last reviewed:** December 2024
 
